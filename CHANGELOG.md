@@ -4,6 +4,8 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-09
+
 - Registrar import for Namecheap, NameSilo and OVHcloud (EU, Canada and US)
 - Fix: a dropped Postgres connection (restart, failover) no longer crashes the server
 
