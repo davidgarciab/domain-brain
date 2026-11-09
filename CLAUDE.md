@@ -75,8 +75,10 @@ app/
     db/                          index.ts (createDb, dialect), schema.ts (row types), migrate.ts,
                                  migrations/NNNN_name.ts
     auth/                        auth.ts (Better Auth config), session.ts (getUser/requireUser)
-    domains/                     Domain service (CRUD, tags, field-ownership rules)
-    rdap/                        RDAP bootstrap + lookup client
+    domains/                     names.ts (normalize/display), service.ts (CRUD, tags, ownership),
+                                 form.ts (add/edit form parsing → field errors)
+    rdap/                        client.ts (bootstrap + lookup + parse), refresh.ts (apply results,
+                                 per-domain refresh, stale-batch job)
     registrars/                  Provider interface + cloudflare.ts, porkbun.ts, godaddy.ts
     notifications/               Expiry check + email sending
     jobs/                        Scheduler setup and job definitions
@@ -89,8 +91,8 @@ Dockerfile
 ```
 
 (*) Exception: `server.ts` reads `NODE_ENV` to decide between dev and prod before any app code loads.
-Directories for features not built yet (`domains/`, `rdap/`, `registrars/`, `notifications/`) are
-created when those features land.
+Directories for features not built yet (`registrars/`, `notifications/`) are created when those
+features land.
 
 ## Configuration (env vars)
 
@@ -129,8 +131,9 @@ Notes:
 - `pnpm dev` runs Node with `--conditions development`. Without it, Node and Vite load different
   React Router builds and requests fail with "Invalid `context` value". Keep the flag.
 - In development, `APP_SECRET` defaults to a fixed insecure value; everywhere else it is required.
-- To run DB tests against Postgres locally, point `TEST_DATABASE_URL` at any Postgres database you
-  can create schemas in. Each test uses its own throwaway schema.
+- To run DB tests against Postgres locally, point `TEST_DATABASE_URL` at a Postgres server where
+  that user can create databases. Each test creates and drops its own database (schemas aren't
+  isolated enough: Kysely's introspection looks across all schemas of a database).
 
 Before considering any task done: `pnpm typecheck && pnpm lint && pnpm test` pass.
 
@@ -139,8 +142,11 @@ Before considering any task done: `pnpm typecheck && pnpm lint && pnpm test` pas
 ### Architecture
 - Route modules stay thin: parse input with Zod, call a service in `app/.server/*`, return data.
   Business logic never lives in route files.
-- Every loader/action that touches user data must get the user from the session helper and
-  **scope every query by `user_id`**. There are no cross-user queries outside jobs.
+- Every loader/action that touches user data must call `requireUser()` itself and
+  **scope every query by `user_id`**. A layout's loader does not protect its child routes'
+  actions. There are no cross-user queries outside jobs.
+- Services take `(db, userId, …)` and return camelCase objects (e.g. `Domain`). Routes never query
+  the database directly.
 - Server-only code goes under `app/.server/`. Never import it from `app/lib` or components.
 - Read config only via `app/.server/env.ts`. Never read `process.env` elsewhere.
 - External HTTP calls (RDAP, registrars) use `fetch` with a timeout (`AbortSignal.timeout`) and
@@ -182,13 +188,20 @@ All queries and migrations must work on both dialects. To keep that cheap:
 ### Style
 - Biome defaults; no default exports except where React Router requires them (route modules, root).
 - Prefer plain functions and modules over classes. Exceptions: none so far.
-- Domain names are stored **lowercase, ASCII (punycode)**, and displayed as Unicode.
+- Domain names are stored **lowercase, ASCII (punycode)**, and displayed as Unicode. Always go
+  through `normalizeDomainName()` / `displayDomainName()` in `domains/names.ts`. Names are
+  immutable after creation.
+- Shared UI primitives live in `app/components/ui.tsx` (buttons, inputs, badges) until shadcn/ui
+  is adopted. Reuse them rather than repeating Tailwind class strings.
 - Don't add a dependency when a few lines will do. A new runtime dependency needs a reason in the PR.
 
 ### Tests
 - Services and registrar adapters get tests. Registrar adapters are tested against recorded fixtures,
   never against live APIs in CI.
-- DB-touching tests use a fresh SQLite in-memory DB (and Postgres schema when `TEST_DATABASE_URL` is set).
+- DB-touching tests use `describe.each(testDialects())` with `createMigratedTestDb()` and
+  `insertUser()` from `tests/helpers/db.ts`: a fresh SQLite in-memory DB, plus a fresh Postgres
+  database when `TEST_DATABASE_URL` is set.
+- External HTTP (RDAP, registrars) is injected (`fetch` parameter / client object) so tests use fixtures.
 
 ## SaaS vs self-hosted
 

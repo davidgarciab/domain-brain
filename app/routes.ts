@@ -6,5 +6,9 @@ export default [
   route("signup", "routes/signup.tsx"),
   route("logout", "routes/logout.tsx"),
   route("api/auth/*", "routes/api.auth.ts"),
-  layout("routes/app-layout.tsx", [route("domains", "routes/domains.tsx")]),
+  layout("routes/app-layout.tsx", [
+    route("domains", "routes/domains.tsx"),
+    route("domains/new", "routes/domains.new.tsx"),
+    route("domains/:id", "routes/domains.$id.tsx"),
+  ]),
 ] satisfies RouteConfig;

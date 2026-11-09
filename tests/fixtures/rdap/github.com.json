@@ -1,0 +1,73 @@
+{
+  "objectClassName": "domain",
+  "ldhName": "GITHUB.COM",
+  "status": ["client delete prohibited", "client transfer prohibited", "client update prohibited"],
+  "entities": [
+    {
+      "objectClassName": "entity",
+      "roles": ["registrar"],
+      "vcardArray": [
+        "vcard",
+        [["version", {}, "text", "4.0"], ["fn", {}, "text", "MarkMonitor Inc."]]
+      ],
+      "publicIds": [
+        {
+          "type": "IANA Registrar ID",
+          "identifier": "292"
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "eventAction": "registration",
+      "eventDate": "2007-10-09T18:20:50Z"
+    },
+    {
+      "eventAction": "expiration",
+      "eventDate": "2028-10-09T18:20:50Z"
+    },
+    {
+      "eventAction": "last changed",
+      "eventDate": "2026-09-07T09:22:52Z"
+    },
+    {
+      "eventAction": "last update of RDAP database",
+      "eventDate": "2026-11-09T19:03:00Z"
+    }
+  ],
+  "nameservers": [
+    {
+      "objectClassName": "nameserver",
+      "ldhName": "DNS1.P08.NSONE.NET"
+    },
+    {
+      "objectClassName": "nameserver",
+      "ldhName": "DNS2.P08.NSONE.NET"
+    },
+    {
+      "objectClassName": "nameserver",
+      "ldhName": "DNS3.P08.NSONE.NET"
+    },
+    {
+      "objectClassName": "nameserver",
+      "ldhName": "DNS4.P08.NSONE.NET"
+    },
+    {
+      "objectClassName": "nameserver",
+      "ldhName": "NS-1283.AWSDNS-32.ORG"
+    },
+    {
+      "objectClassName": "nameserver",
+      "ldhName": "NS-1707.AWSDNS-21.CO.UK"
+    },
+    {
+      "objectClassName": "nameserver",
+      "ldhName": "NS-421.AWSDNS-52.COM"
+    },
+    {
+      "objectClassName": "nameserver",
+      "ldhName": "NS-520.AWSDNS-01.NET"
+    }
+  ]
+}

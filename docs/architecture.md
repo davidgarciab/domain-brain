@@ -89,7 +89,8 @@ user (Better Auth) 1───* domain *───* tag          (via domain_tag)
 
 ### `tag` / `domain_tag`
 `tag(id, user_id, name, color)` with `name` unique per user. `domain_tag(domain_id, tag_id)` has a
-composite PK and cascading deletes.
+composite PK and cascading deletes. Tag names are stored lowercase and trimmed. A tag exists only
+while at least one domain uses it; the service deletes unused tags. `color` is reserved for later.
 
 ### `registrar_connection`
 | Column | Type | Notes |
@@ -114,32 +115,47 @@ row. If the insert hits the unique constraint, the alert was already sent. This 
 idempotent, even if two processes run jobs by mistake, and a renewal (a new `expires_at`) resets
 the alerts.
 
+### Domain list and search
+The list is sorted by expiry (soonest first, unknown last), then name. Search (name in Unicode or
+punycode, registrar name) and tag filtering happen in memory after loading the user's domains. A
+user's list is small, and SQL can't match partial Unicode input like "bü" against punycode names.
+
 ## 3. Field ownership
 
 A domain's data can come from three sources. Each field has one source that wins:
 
-| Field | Winner |
-|---|---|
-| expires_at, registered_at, nameservers, statuses | registrar sync > RDAP > manual |
-| registrar_name, auto_renew | registrar sync > manual (RDAP only fills these when empty) |
-| renewal_price_minor, currency | registrar sync if the API provides it, else manual |
-| notes, tags | always the user |
+| Field | `manual` domain | `registrar` domain |
+|---|---|---|
+| expires_at, registered_at, nameservers, statuses | RDAP overwrites when it has a value; the user can edit | registrar sync wins; RDAP only fills empty fields; read-only for the user (nameservers/statuses aren't user-editable anywhere) |
+| registrar_name, auto_renew | the user; RDAP only fills an empty registrar name | registrar sync; read-only for the user |
+| renewal_price_minor, currency | the user | registrar sync if the API provides it, else the user |
+| notes, tags | the user | the user |
 
-In the UI, fields that a registrar connection controls are read-only and labelled with their source.
-On a `manual` domain, everything is editable, and RDAP only fills fields the user left empty, except
-`expires_at`, which RDAP always refreshes because the registry is authoritative.
+The registry is authoritative for registration facts, so on a manual domain a successful RDAP
+lookup replaces what the user typed for those four fields. For TLDs without RDAP, the user's values
+stay. A domain's `name` never changes after it is created; to fix a typo, delete it and add it again.
+
+Implemented in `rdapUpdate()` (`app/.server/rdap/refresh.ts`) and `updateDomain()`
+(`app/.server/domains/service.ts`, see `REGISTRAR_OWNED_FIELDS`).
 
 ## 4. Integrations
 
 ### RDAP (`app/.server/rdap`)
 - We fetch the IANA bootstrap file `https://data.iana.org/rdap/dns.json`, cache it in memory for 24h,
-  and map the TLD to an RDAP base URL. TLDs without RDAP get `rdap_error = "no RDAP server for .tld"`.
-  A WHOIS fallback is post-MVP.
+  and map the TLD to an RDAP base URL. TLDs without RDAP get a readable `rdap_error`. Several popular
+  ccTLDs aren't in the bootstrap (as of 2026-11: `.de`, `.io`, `.es`), so their users enter dates by
+  hand until the post-MVP WHOIS fallback exists.
 - `GET {base}/domain/{name}`. We parse `events` (`registration`, `expiration`), registrar `entities`,
   `nameservers` and `status` with Zod, ignoring unknown fields.
-- When it runs: once right after a domain is added, then every 24h in the `rdap-refresh` job, which
-  takes the oldest `rdap_checked_at` first, at most N per run, with concurrency 2 and backoff on
-  `429` responses, to stay polite with registries.
+- Every request has an 8s timeout. Errors map to user-facing messages (not found, timeout, HTTP
+  status). A failed lookup still sets `rdap_checked_at`, so the job doesn't retry it before 24h.
+- When it runs:
+  - inline when a domain is added, so the user lands on a page with the expiry date filled in;
+  - on demand via "Refresh now" on the domain page;
+  - in the `rdap-refresh` job every 30 minutes. Each run takes up to 50 domains not checked in 24h
+    (never-checked first, then oldest), two at a time. It stops the batch on a `429`; the rest are
+    picked up next run.
+- Tests use recorded fixtures (`tests/fixtures/rdap/`) and an injected `fetch`, never the network.
 
 ### Registrar adapters (`app/.server/registrars`)
 Every provider implements one interface:
@@ -191,7 +207,7 @@ the job is a no-op and the settings page shows "Email not configured on this ser
 | Job | Schedule | What it does |
 |---|---|---|
 | `expiry-check` | hourly | Sends due expiry emails (idempotent) |
-| `rdap-refresh` | every 30 min, small batches | Refreshes domains checked more than 24h ago |
+| `rdap-refresh` | every 30 min, ≤50 domains | Refreshes domains checked more than 24h ago |
 | `registrar-sync` | every 6h | Syncs every registrar connection |
 
 Jobs use `croner` with `protect: true`, so a slow run never overlaps the next one. They only run where

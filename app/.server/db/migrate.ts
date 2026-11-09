@@ -1,4 +1,4 @@
-import type { Kysely } from "kysely";
+import { type Kysely, sql } from "kysely";
 import { type Migration, type MigrationResultSet, Migrator } from "kysely/migration";
 import type { Dialect } from "./index";
 
@@ -33,9 +33,18 @@ export async function migrateToLatest(
   db: Kysely<any>,
   dialect: Dialect,
 ): Promise<MigrationResultSet["results"]> {
+  // On Postgres, pin Kysely's bookkeeping tables to the connection's schema. Otherwise the
+  // Migrator finds a `kysely_migration` table in *any* schema (e.g. another app sharing the
+  // database) and wrongly assumes ours exists.
+  const migrationTableSchema =
+    dialect === "postgres"
+      ? (await sql<{ schema: string }>`select current_schema() as schema`.execute(db)).rows[0]
+          ?.schema
+      : undefined;
   const migrator = new Migrator({
     db,
     provider: { getMigrations: async () => loadMigrations(dialect) },
+    migrationTableSchema,
   });
   const { error, results } = await migrator.migrateToLatest();
   if (error) {

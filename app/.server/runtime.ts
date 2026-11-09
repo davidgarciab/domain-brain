@@ -24,7 +24,7 @@ export function boot(): Promise<Runtime> {
     for (const r of results ?? []) log.info({ migration: r.migrationName }, "migration applied");
 
     const auth = createAuth(handle, config);
-    const jobs = config.JOBS_ENABLED ? startJobs() : null;
+    const jobs = config.JOBS_ENABLED ? startJobs(handle.db) : null;
     if (!jobs) log.info("background jobs disabled (JOBS_ENABLED=false)");
 
     return { ...handle, auth, jobs };
