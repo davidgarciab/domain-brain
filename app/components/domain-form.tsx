@@ -1,4 +1,6 @@
+import type { ComponentProps } from "react";
 import { Form, useNavigation } from "react-router";
+import { formatDate } from "~/lib/dates";
 import { Button, FormField, inputClass } from "./ui";
 
 export type DomainFormValues = {
@@ -15,27 +17,43 @@ export type DomainFormValues = {
 
 export type DomainFormErrors = Partial<Record<keyof DomainFormValues | "form", string>>;
 
+type Field = keyof DomainFormValues;
+
 /**
- * Add/edit form. `registrarManaged` locks the fields a registrar sync owns.
+ * Add/edit form. `registrarManaged` shows the fields a registrar sync owns as read-only text.
+ * `registryUpdates` notes that registry lookups may replace the dates.
  * Remount with a `key` when `values` should reset.
  */
 export function DomainForm({
   mode,
   values,
   errors = {},
-  registrarManaged = false,
+  registrarManaged = null,
+  registryUpdates = false,
 }: {
   mode: "create" | "edit";
   values: DomainFormValues;
   errors?: DomainFormErrors;
-  registrarManaged?: boolean;
+  /** Registrar display name when the domain is registrar-synced, else null. */
+  registrarManaged?: string | null;
+  registryUpdates?: boolean;
 }) {
   const navigation = useNavigation();
   const pending =
     navigation.state === "submitting" && navigation.formData?.get("intent") === "save";
-  const locked = registrarManaged ? "Managed by your registrar connection." : undefined;
-  const describe = (field: string) =>
-    errors[field as keyof DomainFormErrors] ? `${field}-error` : undefined;
+
+  const input = (name: Field, props: ComponentProps<"input"> = {}) => (
+    <input
+      id={name}
+      name={name}
+      className={inputClass}
+      defaultValue={values[name]}
+      aria-invalid={errors[name] ? true : undefined}
+      aria-describedby={errors[name] ? `${name}-error` : undefined}
+      {...props}
+    />
+  );
+  const registryHint = registryUpdates ? "Updated from the registry when it changes." : undefined;
 
   return (
     <Form method="post" className="space-y-5" noValidate>
@@ -53,100 +71,81 @@ export function DomainForm({
           error={errors.name}
           hint="We'll look up the expiry date and registrar automatically when we can."
         >
-          <input
-            id="name"
-            name="name"
-            className={inputClass}
-            defaultValue={values.name}
-            placeholder="example.com"
-            autoComplete="off"
-            autoCapitalize="none"
-            spellCheck={false}
-            required
-            aria-invalid={Boolean(errors.name)}
-            aria-describedby={describe("name")}
-          />
+          {input("name", {
+            placeholder: "example.com",
+            autoComplete: "off",
+            autoCapitalize: "none",
+            spellCheck: false,
+            required: true,
+          })}
         </FormField>
       )}
 
-      <div className="grid gap-5 sm:grid-cols-2">
-        <FormField
-          label="Registrar"
-          htmlFor="registrarName"
-          error={errors.registrarName}
-          hint={locked}
-        >
-          <input
-            id="registrarName"
-            name="registrarName"
-            className={inputClass}
-            defaultValue={values.registrarName}
-            placeholder="e.g. Porkbun"
-            disabled={registrarManaged}
-            aria-describedby={describe("registrarName")}
-          />
-        </FormField>
-        <FormField label="Auto-renew" htmlFor="autoRenew" hint={locked}>
-          <select
-            id="autoRenew"
-            name="autoRenew"
-            className={inputClass}
-            defaultValue={values.autoRenew ?? ""}
-            disabled={registrarManaged}
+      {registrarManaged ? (
+        <div className="rounded-md bg-gray-50 p-4 text-sm dark:bg-gray-900">
+          <p className="text-gray-500">Managed by your {registrarManaged} connection</p>
+          <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3">
+            <ReadOnly label="Registrar" value={values.registrarName} />
+            <ReadOnly
+              label="Auto-renew"
+              value={values.autoRenew === "yes" ? "On" : values.autoRenew === "no" ? "Off" : ""}
+            />
+            <ReadOnly
+              label="Expires"
+              value={values.expiresAt ? formatDate(values.expiresAt) : ""}
+            />
+            <ReadOnly
+              label="Registered"
+              value={values.registeredAt ? formatDate(values.registeredAt) : ""}
+            />
+          </dl>
+        </div>
+      ) : (
+        <div className="grid gap-5 sm:grid-cols-2">
+          <FormField label="Registrar" htmlFor="registrarName" error={errors.registrarName}>
+            {input("registrarName", { placeholder: "e.g. Porkbun" })}
+          </FormField>
+          <FormField label="Auto-renew" htmlFor="autoRenew">
+            <select
+              id="autoRenew"
+              name="autoRenew"
+              className={inputClass}
+              defaultValue={values.autoRenew ?? ""}
+            >
+              <option value="">Unknown</option>
+              <option value="yes">On</option>
+              <option value="no">Off</option>
+            </select>
+          </FormField>
+          <FormField
+            label="Expires"
+            htmlFor="expiresAt"
+            error={errors.expiresAt}
+            hint={registryHint}
           >
-            <option value="">Unknown</option>
-            <option value="yes">On</option>
-            <option value="no">Off</option>
-          </select>
-        </FormField>
-        <FormField label="Expires" htmlFor="expiresAt" error={errors.expiresAt} hint={locked}>
-          <input
-            id="expiresAt"
-            name="expiresAt"
-            type="date"
-            className={inputClass}
-            defaultValue={values.expiresAt}
-            disabled={registrarManaged}
-            aria-describedby={describe("expiresAt")}
-          />
-        </FormField>
-        <FormField
-          label="Registered"
-          htmlFor="registeredAt"
-          error={errors.registeredAt}
-          hint={locked}
-        >
-          <input
-            id="registeredAt"
-            name="registeredAt"
-            type="date"
-            className={inputClass}
-            defaultValue={values.registeredAt}
-            disabled={registrarManaged}
-            aria-describedby={describe("registeredAt")}
-          />
-        </FormField>
+            {input("expiresAt", { type: "date" })}
+          </FormField>
+          <FormField
+            label="Registered"
+            htmlFor="registeredAt"
+            error={errors.registeredAt}
+            hint={registryHint}
+          >
+            {input("registeredAt", { type: "date" })}
+          </FormField>
+        </div>
+      )}
+
+      <div className="grid grid-cols-[1fr_7rem] gap-5">
         <FormField label="Renewal price" htmlFor="price" error={errors.price}>
-          <input
-            id="price"
-            name="price"
-            inputMode="decimal"
-            className={inputClass}
-            defaultValue={values.price}
-            placeholder="12.99"
-            aria-describedby={describe("price")}
-          />
+          {input("price", { inputMode: "decimal", placeholder: "e.g. 12.99" })}
         </FormField>
         <FormField label="Currency" htmlFor="currency" error={errors.currency}>
-          <input
-            id="currency"
-            name="currency"
-            className={inputClass}
-            defaultValue={values.currency || "USD"}
-            maxLength={3}
-            autoCapitalize="characters"
-            aria-describedby={describe("currency")}
-          />
+          {input("currency", {
+            defaultValue: values.currency || "USD",
+            maxLength: 3,
+            autoCapitalize: "characters",
+          })}
         </FormField>
       </div>
 
@@ -156,7 +155,7 @@ export function DomainForm({
         error={errors.tags}
         hint="Comma-separated, e.g. personal, client-x"
       >
-        <input id="tags" name="tags" className={inputClass} defaultValue={values.tags} />
+        {input("tags")}
       </FormField>
 
       <FormField label="Notes" htmlFor="notes" error={errors.notes}>
@@ -166,7 +165,8 @@ export function DomainForm({
           rows={4}
           className={inputClass}
           defaultValue={values.notes}
-          aria-describedby={describe("notes")}
+          aria-invalid={errors.notes ? true : undefined}
+          aria-describedby={errors.notes ? "notes-error" : undefined}
         />
       </FormField>
 
@@ -180,5 +180,14 @@ export function DomainForm({
             : "Save changes"}
       </Button>
     </Form>
+  );
+}
+
+function ReadOnly({ label, value }: { label: string; value: string | undefined }) {
+  return (
+    <div>
+      <dt className="text-gray-500">{label}</dt>
+      <dd>{value || "—"}</dd>
+    </div>
   );
 }

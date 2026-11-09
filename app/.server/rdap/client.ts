@@ -86,6 +86,8 @@ type Fetch = typeof globalThis.fetch;
 
 export type RdapClient = {
   lookup: (asciiName: string) => Promise<RdapResult>;
+  /** Whether the TLD has a public RDAP server; null if the directory can't be loaded. */
+  supportsTld?: (tld: string) => Promise<boolean | null>;
 };
 
 export function createRdapClient({
@@ -113,6 +115,13 @@ export function createRdapClient({
   }
 
   return {
+    async supportsTld(tld) {
+      try {
+        return (await serverFor(tld.toLowerCase())) !== null;
+      } catch {
+        return null;
+      }
+    },
     async lookup(asciiName) {
       const tld = tldOf(asciiName);
       const base = await serverFor(tld);

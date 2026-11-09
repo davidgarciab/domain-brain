@@ -73,6 +73,16 @@ describe("rdap client", () => {
     expect(fetch.mock.calls.filter(([u]) => String(u) === BOOTSTRAP_URL)).toHaveLength(1);
   });
 
+  it("knows which TLDs are supported", async () => {
+    const client = createRdapClient({ fetch: fakeFetch({}) });
+    expect(await client.supportsTld?.("com")).toBe(true);
+    expect(await client.supportsTld?.("de")).toBe(false);
+    const offline = createRdapClient({
+      fetch: (async () => new Response("", { status: 503 })) as unknown as typeof fetch,
+    });
+    expect(await offline.supportsTld?.("com")).toBeNull();
+  });
+
   it("maps failures to readable errors", async () => {
     const client = createRdapClient({
       fetch: fakeFetch({

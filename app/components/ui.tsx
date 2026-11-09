@@ -6,7 +6,7 @@ import { Link } from "react-router";
 const cx = (...classes: (string | false | null | undefined)[]) => classes.filter(Boolean).join(" ");
 
 export const inputClass =
-  "w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-gray-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:focus:border-gray-100";
+  "w-full rounded-md border border-gray-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-gray-900 disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:border-red-500 dark:border-gray-700 dark:focus:border-gray-100 dark:aria-invalid:border-red-500";
 
 const buttonVariants = {
   primary:

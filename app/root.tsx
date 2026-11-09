@@ -1,13 +1,11 @@
-import {
-  isRouteErrorResponse,
-  Links,
-  Meta,
-  Outlet,
-  Scripts,
-  ScrollRestoration,
-} from "react-router";
+import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
 import type { Route } from "./+types/root";
+import { ErrorPage } from "./components/error-page";
 import "./app.css";
+
+export const links: Route.LinksFunction = () => [
+  { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+];
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -32,28 +30,9 @@ export default function App() {
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
-  let message = "Something went wrong";
-  let details = "An unexpected error occurred.";
-  let stack: string | undefined;
-
-  if (isRouteErrorResponse(error)) {
-    message = error.status === 404 ? "Not found" : `Error ${error.status}`;
-    details =
-      error.status === 404 ? "The requested page could not be found." : error.statusText || details;
-  } else if (import.meta.env.DEV && error instanceof Error) {
-    details = error.message;
-    stack = error.stack;
-  }
-
   return (
-    <main className="container mx-auto p-4 pt-16">
-      <h1 className="text-2xl font-semibold">{message}</h1>
-      <p className="mt-2">{details}</p>
-      {stack && (
-        <pre className="mt-4 w-full overflow-x-auto p-4 text-sm">
-          <code>{stack}</code>
-        </pre>
-      )}
+    <main className="mx-auto max-w-5xl px-4">
+      <ErrorPage error={error} />
     </main>
   );
 }

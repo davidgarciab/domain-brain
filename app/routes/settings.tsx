@@ -85,9 +85,16 @@ export default function Settings({ loaderData, actionData }: Route.ComponentProp
 
       <Form method="post" className="mt-4 space-y-5">
         <input type="hidden" name="intent" value="save" />
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="emailEnabled" defaultChecked={settings.emailEnabled} />
-          Email me at <strong>{email}</strong> before my domains expire
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="emailEnabled"
+            defaultChecked={settings.emailEnabled}
+            className="mt-0.5"
+          />
+          <span>
+            Email me at <strong>{email}</strong> before my domains expire
+          </span>
         </label>
 
         <FormField

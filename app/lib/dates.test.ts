@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { addDays, daysUntil, isDateString, isTimeZone, localNow, todayUtc } from "./dates";
+import {
+  addDays,
+  daysUntil,
+  formatTimestamp,
+  isDateString,
+  isTimeZone,
+  localNow,
+  todayUtc,
+} from "./dates";
 
 describe("dates", () => {
   it("counts days", () => {
@@ -37,5 +45,11 @@ describe("localNow / addDays", () => {
   it("validates timezones", () => {
     expect(isTimeZone("Europe/Madrid")).toBe(true);
     expect(isTimeZone("Mars/Base")).toBe(false);
+  });
+});
+
+describe("formatTimestamp", () => {
+  it("formats in UTC with a 24h clock", () => {
+    expect(formatTimestamp("2026-11-09T19:27:19.123Z")).toBe("Nov 9, 2026, 19:27 UTC");
   });
 });

@@ -118,6 +118,11 @@ export default function Domains({ loaderData }: Route.ComponentProps) {
                         <Link to={`/domains/${d.id}`} className="font-medium hover:underline">
                           {d.displayName}
                         </Link>
+                        {d.registrarMissingSince && (
+                          <span className="ml-2">
+                            <Badge tone="warning">Not at registrar</Badge>
+                          </span>
+                        )}
                         {d.tags.length > 0 && (
                           <div className="mt-1 flex flex-wrap gap-1">
                             {d.tags.map((t) => (

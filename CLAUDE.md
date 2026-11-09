@@ -193,7 +193,9 @@ All queries and migrations must work on both dialects. To keep that cheap:
   through `normalizeDomainName()` / `displayDomainName()` in `domains/names.ts`. Names are
   immutable after creation.
 - Shared UI primitives live in `app/components/ui.tsx` (buttons, inputs, badges) until shadcn/ui
-  is adopted. Reuse them rather than repeating Tailwind class strings.
+  is adopted. Reuse them rather than repeating Tailwind class strings. Error boundaries render
+  `components/error-page.tsx`; the signed-in layout has its own boundary so errors keep the header.
+- Check UI changes visually (desktop + 390px phone width, light + dark), not only via HTML output.
 - Don't add a dependency when a few lines will do. A new runtime dependency needs a reason in the PR.
 
 ### Tests

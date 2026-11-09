@@ -58,3 +58,15 @@ export function isTimeZone(value: string): boolean {
     return false;
   }
 }
+
+/** ISO timestamp → "Nov 9, 2026, 19:27 UTC" (unambiguous, same on server and client). */
+export function formatTimestamp(iso: string): string {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString("en", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+  return `${date}, ${d.toISOString().slice(11, 16)} UTC`;
+}

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 export function AuthCard({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
+    <main className="flex min-h-screen items-start justify-center p-4 pt-16 sm:items-center sm:pt-4">
       <div className="w-full max-w-sm">
         <p className="mb-6 text-center text-sm font-medium text-gray-500">Domain Brain</p>
         <div className="rounded-lg border border-gray-200 p-6 shadow-sm dark:border-gray-800">

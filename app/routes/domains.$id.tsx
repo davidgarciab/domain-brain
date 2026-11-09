@@ -1,14 +1,15 @@
 import { data, Form, Link, redirect, useNavigation } from "react-router";
 import { requireUser } from "~/.server/auth/session";
 import { parseDomainForm } from "~/.server/domains/form";
+import { tldOf } from "~/.server/domains/names";
 import { type Domain, deleteDomain, getDomain, updateDomain } from "~/.server/domains/service";
 import { rdapClient } from "~/.server/rdap/client";
 import { refreshDomain } from "~/.server/rdap/refresh";
 import { DomainForm, type DomainFormValues } from "~/components/domain-form";
-import { ExpiryBadge, ExpiryDate } from "~/components/expiry";
+import { ExpiryBadge } from "~/components/expiry";
 import { Badge, Button } from "~/components/ui";
 import { runtimeContext } from "~/context";
-import { formatDate, todayUtc } from "~/lib/dates";
+import { formatDate, formatTimestamp, todayUtc } from "~/lib/dates";
 import { fromMinorUnits } from "~/lib/money";
 import type { Route } from "./+types/domains.$id";
 
@@ -26,7 +27,9 @@ async function load(context: Route.LoaderArgs["context"], request: Request, id: 
 
 export async function loader({ context, request, params }: Route.LoaderArgs) {
   const { domain } = await load(context, request, params.id);
-  return { domain, today: todayUtc() };
+  // null = unknown (RDAP directory unreachable); treat it as supported in the UI.
+  const rdapSupported = (await rdapClient().supportsTld?.(tldOf(domain.name))) ?? null;
+  return { domain, rdapSupported: rdapSupported !== false, today: todayUtc() };
 }
 
 export async function action({ context, request, params }: Route.ActionArgs) {
@@ -70,27 +73,38 @@ function toFormValues(d: Domain): DomainFormValues {
 }
 
 export default function DomainDetail({ loaderData, actionData }: Route.ComponentProps) {
-  const { domain, today } = loaderData;
+  const { domain, today, rdapSupported } = loaderData;
   const navigation = useNavigation();
   const busy = (intent: string) =>
     navigation.state !== "idle" && navigation.formData?.get("intent") === intent;
   const errors = actionData && "errors" in actionData ? actionData.errors : undefined;
   const values =
     (actionData && "values" in actionData ? actionData.values : undefined) ?? toFormValues(domain);
+  const synced = domain.source === "registrar";
+  const tld = domain.name.slice(domain.name.lastIndexOf(".") + 1);
+
+  const summary = [
+    domain.expiresAt ? `Expires ${formatDate(domain.expiresAt)}` : "Expiry unknown",
+    domain.registrarName,
+    domain.autoRenew === null ? null : `Auto-renew ${domain.autoRenew ? "on" : "off"}`,
+  ].filter(Boolean);
 
   return (
-    <section className="max-w-3xl">
+    <section>
       <Link to="/domains" className="text-sm text-gray-500 hover:underline">
         ← Domains
       </Link>
-      <div className="mt-2 flex flex-wrap items-center gap-3">
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
         <h1 className="text-2xl font-semibold break-all">{domain.displayName}</h1>
         <ExpiryBadge expiresAt={domain.expiresAt} today={today} />
-        {domain.source === "registrar" && <Badge tone="ok">Synced</Badge>}
+        {synced && <Badge tone="ok">Synced</Badge>}
       </div>
-      {domain.displayName !== domain.name && (
-        <p className="mt-1 font-mono text-xs text-gray-500">{domain.name}</p>
-      )}
+      <p className="mt-1 text-sm text-gray-500">
+        {summary.join(" · ")}
+        {domain.displayName !== domain.name && (
+          <span className="ml-2 font-mono text-xs">({domain.name})</span>
+        )}
+      </p>
 
       {domain.registrarMissingSince && (
         <p
@@ -103,98 +117,102 @@ export default function DomainDetail({ loaderData, actionData }: Route.Component
         </p>
       )}
 
-      <div className="mt-6 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <h2 className="font-medium">Registry data</h2>
-          <Form method="post">
-            <input type="hidden" name="intent" value="refresh" />
-            <Button type="submit" variant="secondary" disabled={busy("refresh")}>
-              {busy("refresh") ? "Checking…" : "Refresh now"}
-            </Button>
-          </Form>
-        </div>
-        <dl className="mt-3 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-          <div>
-            <dt className="text-gray-500">Expires</dt>
-            <dd>
-              <ExpiryDate expiresAt={domain.expiresAt} />
-            </dd>
-          </div>
-          <div>
-            <dt className="text-gray-500">Registered</dt>
-            <dd>{domain.registeredAt ? formatDate(domain.registeredAt) : "—"}</dd>
-          </div>
-          <div>
-            <dt className="text-gray-500">Registrar</dt>
-            <dd>{domain.registrarName ?? "—"}</dd>
-          </div>
-          <div>
-            <dt className="text-gray-500">Last checked</dt>
-            <dd>
-              {domain.rdapCheckedAt ? (
-                <time dateTime={domain.rdapCheckedAt}>
-                  {new Date(domain.rdapCheckedAt).toLocaleString("en", { timeZone: "UTC" })} UTC
-                </time>
-              ) : (
-                "Never"
-              )}
-            </dd>
-          </div>
-          <div className="sm:col-span-2">
-            <dt className="text-gray-500">Nameservers</dt>
-            <dd className="font-mono text-xs">
-              {domain.nameservers.length ? domain.nameservers.join(", ") : "—"}
-            </dd>
-          </div>
-          {domain.statuses.length > 0 && (
-            <div className="sm:col-span-2">
-              <dt className="text-gray-500">Status</dt>
-              <dd className="mt-1 flex flex-wrap gap-1">
-                {domain.statuses.map((s) => (
-                  <Badge key={s}>{s}</Badge>
-                ))}
-              </dd>
-            </div>
+      <div className="mt-6 grid gap-8 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <h2 className="mb-4 font-medium">Details</h2>
+          {actionData && "saved" in actionData && (
+            <p role="status" className="mb-4 text-sm text-green-700 dark:text-green-400">
+              Saved.
+            </p>
           )}
-        </dl>
-        {domain.rdapError && (
-          <p className="mt-3 text-sm text-amber-700 dark:text-amber-400">
-            Last lookup failed: {domain.rdapError}
-          </p>
-        )}
-      </div>
+          <DomainForm
+            key={domain.updatedAt}
+            mode="edit"
+            values={values}
+            errors={errors}
+            registrarManaged={synced ? (domain.registrarName ?? "registrar") : null}
+            registryUpdates={rdapSupported}
+          />
+        </div>
 
-      <h2 className="mt-8 mb-4 font-medium">Details</h2>
-      {actionData && "saved" in actionData && (
-        <p role="status" className="mb-4 text-sm text-green-700 dark:text-green-400">
-          Saved.
-        </p>
-      )}
-      <DomainForm
-        key={domain.updatedAt}
-        mode="edit"
-        values={values}
-        errors={errors}
-        registrarManaged={domain.source === "registrar"}
-      />
+        <aside className="space-y-6 lg:pt-10">
+          <div className="rounded-lg border border-gray-200 p-4 text-sm dark:border-gray-800">
+            <h2 className="font-medium">Registry lookup</h2>
+            {rdapSupported ? (
+              <>
+                <dl className="mt-3 space-y-3">
+                  <div>
+                    <dt className="text-gray-500">Last checked</dt>
+                    <dd>
+                      {domain.rdapCheckedAt ? formatTimestamp(domain.rdapCheckedAt) : "Never"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-gray-500">Nameservers</dt>
+                    <dd>
+                      {domain.nameservers.length ? (
+                        <ul className="font-mono text-xs leading-5">
+                          {domain.nameservers.map((ns) => (
+                            <li key={ns} className="break-all">
+                              {ns}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        "—"
+                      )}
+                    </dd>
+                  </div>
+                  {domain.statuses.length > 0 && (
+                    <div>
+                      <dt className="text-gray-500">Status</dt>
+                      <dd className="mt-1 flex flex-wrap gap-1">
+                        {domain.statuses.map((s) => (
+                          <Badge key={s}>{s}</Badge>
+                        ))}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+                {domain.rdapError && (
+                  <p className="mt-3 text-amber-700 dark:text-amber-400">
+                    Last lookup failed: {domain.rdapError}
+                  </p>
+                )}
+                <Form method="post" className="mt-4">
+                  <input type="hidden" name="intent" value="refresh" />
+                  <Button type="submit" variant="secondary" disabled={busy("refresh")}>
+                    {busy("refresh") ? "Checking…" : "Refresh now"}
+                  </Button>
+                </Form>
+              </>
+            ) : (
+              <p className="mt-2 text-gray-500">
+                The .{tld} registry doesn't offer automatic lookups
+                {synced ? "." : ", so keep the dates here up to date yourself."}
+              </p>
+            )}
+          </div>
 
-      <div className="mt-10 border-t border-gray-200 pt-6 dark:border-gray-800">
-        <h2 className="font-medium">Delete domain</h2>
-        <p className="mt-1 text-sm text-gray-500">
-          Removes it from Domain Brain only. Nothing changes at your registrar.
-        </p>
-        <Form
-          method="post"
-          className="mt-3"
-          onSubmit={(event) => {
-            if (!confirm(`Delete ${domain.displayName}?`)) event.preventDefault();
-          }}
-        >
-          <input type="hidden" name="intent" value="delete" />
-          <Button type="submit" variant="danger" disabled={busy("delete")}>
-            Delete
-          </Button>
-        </Form>
+          <div className="rounded-lg border border-gray-200 p-4 text-sm dark:border-gray-800">
+            <h2 className="font-medium">Delete domain</h2>
+            <p className="mt-1 text-gray-500">
+              Removes it from Domain Brain only. Nothing changes at your registrar.
+            </p>
+            <Form
+              method="post"
+              className="mt-3"
+              onSubmit={(event) => {
+                if (!confirm(`Delete ${domain.displayName}?`)) event.preventDefault();
+              }}
+            >
+              <input type="hidden" name="intent" value="delete" />
+              <Button type="submit" variant="danger" disabled={busy("delete")}>
+                Delete
+              </Button>
+            </Form>
+          </div>
+        </aside>
       </div>
     </section>
   );
