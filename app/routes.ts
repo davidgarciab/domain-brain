@@ -10,6 +10,8 @@ export default [
     route("domains", "routes/domains.tsx"),
     route("domains/new", "routes/domains.new.tsx"),
     route("domains/:id", "routes/domains.$id.tsx"),
+    route("registrars", "routes/registrars.tsx"),
+    route("registrars/new/:provider", "routes/registrars.new.$provider.tsx"),
     route("settings", "routes/settings.tsx"),
   ]),
 ] satisfies RouteConfig;

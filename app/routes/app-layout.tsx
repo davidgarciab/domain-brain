@@ -35,8 +35,11 @@ function Shell({ email, children }: { email: string | undefined; children: React
             Domain Brain
           </Link>
           {email && (
-            <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-3 text-sm sm:gap-4">
               <span className="hidden text-gray-500 sm:inline">{email}</span>
+              <Link to="/registrars" className="underline">
+                Registrars
+              </Link>
               <Link to="/settings" className="underline">
                 Settings
               </Link>

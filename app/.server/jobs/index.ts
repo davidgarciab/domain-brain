@@ -6,11 +6,11 @@ import { runExpiryCheck } from "../notifications/expiry";
 import { mailer } from "../notifications/mailer";
 import { rdapClient } from "../rdap/client";
 import { refreshStaleDomains } from "../rdap/refresh";
+import { syncAllConnections } from "../registrars/service";
 
 /**
  * Background jobs (see docs/architecture.md → "Background jobs").
  * Each job runs in-process; `protect: true` prevents overlapping runs.
- * Still to come: registrar-sync.
  */
 type JobDefinition = { name: string; schedule: string; run: () => Promise<unknown> };
 
@@ -24,6 +24,11 @@ function definitions(db: Db): JobDefinition[] {
         if (!m) return { skipped: "SMTP_URL not set" };
         return runExpiryCheck(db, m, { appUrl: env().APP_URL });
       },
+    },
+    {
+      name: "registrar-sync",
+      schedule: "17 */6 * * *",
+      run: () => syncAllConnections(db, { secret: env().APP_SECRET }),
     },
     {
       name: "rdap-refresh",

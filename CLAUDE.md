@@ -27,7 +27,10 @@ env var, or a manual setup step must be justified and recorded here.
 - **RDAP auto-lookup**: fill in and refresh expiry, registrar, nameservers, and status from public RDAP.
 - **Expiry notifications** by email (SMTP) at configurable days before expiry (default 30, 7, 1),
   plus one alert when a domain expires; sent after 08:00 in the user's timezone, with catch-up.
-- **Registrar API sync** (import/refresh domains) for **Cloudflare, Porkbun, GoDaddy**.
+- **Registrar API sync** (import/refresh domains, read-only) for **Cloudflare, Porkbun, GoDaddy**.
+  Adding a registrar = one new file implementing `RegistrarProvider`, registered in
+  `registrars/index.ts`, with fixture-based tests. Check its API against the provider's current
+  docs; they change (Cloudflare retired its old Registrar endpoint in 2026).
 
 Out of scope for the MVP: teams/orgs, DNS record management, billing, WHOIS (port 43) fallback,
 webhooks/Slack notifications, public REST API. Don't build these without updating this file first.
@@ -80,7 +83,8 @@ app/
                                  form.ts (add/edit form parsing → field errors)
     rdap/                        client.ts (bootstrap + lookup + parse), refresh.ts (apply results,
                                  per-domain refresh, stale-batch job)
-    registrars/                  Provider interface + cloudflare.ts, porkbun.ts, godaddy.ts
+    registrars/                  types.ts (provider interface), http.ts, cloudflare.ts, porkbun.ts,
+                                 godaddy.ts, index.ts (provider map), service.ts (connections + sync)
     notifications/               settings.ts (per-user settings + form), expiry.ts (due-threshold
                                  logic + hourly job), email.ts (digest rendering), mailer.ts (SMTP)
     jobs/                        Scheduler setup and job definitions
@@ -93,7 +97,6 @@ Dockerfile
 ```
 
 (*) Exception: `server.ts` reads `NODE_ENV` to decide between dev and prod before any app code loads.
-The `registrars/` directory is created when that feature lands.
 
 ## Configuration (env vars)
 

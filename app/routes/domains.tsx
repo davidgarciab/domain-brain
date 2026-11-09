@@ -50,11 +50,15 @@ export default function Domains({ loaderData }: Route.ComponentProps) {
         <div className="mt-10 rounded-lg border border-dashed border-gray-300 p-10 text-center dark:border-gray-700">
           <p className="font-medium">No domains yet</p>
           <p className="mt-1 text-sm text-gray-500">
-            Add your first domain and we'll fill in its expiry date from the registry.
+            Add a domain and we'll fill in its expiry date from the registry, or import all of them
+            from your registrar.
           </p>
-          <LinkButton to="/domains/new" className="mt-4">
-            Add domain
-          </LinkButton>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <LinkButton to="/domains/new">Add domain</LinkButton>
+            <LinkButton to="/registrars" variant="secondary">
+              Connect a registrar
+            </LinkButton>
+          </div>
         </div>
       ) : (
         <>

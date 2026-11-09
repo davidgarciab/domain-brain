@@ -161,15 +161,17 @@ Implemented in `rdapUpdate()` (`app/.server/rdap/refresh.ts`) and `updateDomain(
 - Tests use recorded fixtures (`tests/fixtures/rdap/`) and an injected `fetch`, never the network.
 
 ### Registrar adapters (`app/.server/registrars`)
-Every provider implements one interface:
+Every provider implements one interface (`types.ts`):
 
 ```ts
 interface RegistrarProvider<C> {
   id: "cloudflare" | "porkbun" | "godaddy";
   displayName: string;
-  credentialsSchema: z.ZodType<C>;      // also drives the "connect" form
-  verify(creds: C): Promise<void>;      // throws a user-readable error
-  listDomains(creds: C): Promise<RegistrarDomain[]>;
+  setupHelp: string;                      // shown on the connect form
+  fields: CredentialField[];              // drives the connect form (secret fields are never echoed)
+  credentialsSchema: z.ZodType<C>;        // validates the form input
+  verify(creds: C, fetch): Promise<void>; // throws RegistrarError with a user-readable message
+  listDomains(creds: C, fetch): Promise<RegistrarDomain[]>;
 }
 
 type RegistrarDomain = {
@@ -177,27 +179,46 @@ type RegistrarDomain = {
   expiresAt: string | null;     // YYYY-MM-DD
   registeredAt: string | null;
   autoRenew: boolean | null;
-  nameservers: string[] | null;
+  nameservers: string[] | null; // null = not reported by this API
   renewalPriceMinor: number | null;
   currency: string | null;
 };
 ```
 
-| Provider | Credentials | Endpoint | Gotchas |
+`fetch` is passed in so adapters are tested against recorded responses, never live APIs. Shared HTTP
+handling (`http.ts`) adds a 20s timeout and maps network errors, 429 and 5xx to readable messages.
+
+Checked against the providers' docs and live error responses in 2026-11:
+
+| Provider | Credentials | Endpoint | Notes |
 |---|---|---|---|
-| Cloudflare | API token (Registrar read), account ID | `GET /client/v4/accounts/{id}/registrar/domains` | Only domains registered *at* Cloudflare, not zones that just use Cloudflare DNS |
-| Porkbun | API key + secret key | `POST /api/json/v3/domain/listAll` (paginated with `start`) | The user must turn on API access in the Porkbun account |
-| GoDaddy | API key + secret | `GET /v1/domains` (header `sso-key KEY:SECRET`) | GoDaddy only grants production API access to accounts that meet its requirements (e.g. 10+ domains). Explain this in the connect form |
+| Cloudflare | API token (Bearer) with Registrar read access, account ID | `GET /client/v4/accounts/{id}/registrar/registrations` with cursor pagination (`per_page` ≤ 50) | The older `/registrar/domains` endpoint reached end of life on 2026-09-27. Only domains registered at Cloudflare Registrar are listed. No nameservers in the response. Auth failures come back as HTTP 400 (code 9106, malformed token) or 401 (code 10000). |
+| Porkbun | API key + secret key (in the JSON body) | `POST https://api.porkbun.com/api/json/v3/domain/listAll`, pages of 1000 via `start`; `POST /ping` to verify | Only domains with API access turned on are listed (per domain, or "Opt In All Domains"). Dates look like `"2027-01-15 10:00:00"` (UTC). Errors: HTTP 400 with `{status: "ERROR", message}`. |
+| GoDaddy | Personal access token (Bearer) **or** legacy API key + secret (`sso-key`) | `GET https://api.godaddy.com/v1/domains?limit=1000&includes=nameServers`, paginated with `marker` (last domain) | Production API access is limited to accounts that meet GoDaddy's requirements; the connect form says so. Domains in `CANCELLED*`, `TRANSFERRED*`, `UPDATED*`, `CONFISCATED`, `FAILED*` and `REVERTED` status are treated as no longer in the account. |
 
-**How a sync works** (manual "Sync now" or the `registrar-sync` job every 6h):
-1. Decrypt the credentials, then call `listDomains`.
-2. Upsert each domain by `(user_id, name)`, applying the field ownership rules. Set `source=registrar`
-   and `registrar_connection_id`.
-3. For domains linked to this connection that the registrar no longer returned (transferred out or
-   expired), set `registrar_missing_since`. **Never delete them automatically.** The UI flags them.
-4. Record `last_sync_at`, or `last_sync_error` (a readable message, never raw credentials).
+None of the three reports renewal prices in these endpoints, so price stays user-entered for now.
 
-Deleting a connection unlinks its domains, which become `manual`. It does not delete them.
+**Connecting** (`connectRegistrar()`): validate the form with the provider's schema → `verify()`
+against the live API → store the connection with AES-GCM-encrypted credentials → run the first
+sync. Nothing is stored if verification fails.
+
+**How a sync works** (`syncConnection()`: "Sync now", after connecting, or the `registrar-sync` job
+every 6h, which syncs connections one at a time):
+1. Decrypt the credentials (if `APP_SECRET` changed, this fails with a "remove and reconnect"
+   message), then call `listDomains`.
+2. In one transaction, upsert each domain by `(user_id, name)`:
+   - set `source=registrar`, `registrar_connection_id`, and `registrar_name` (the provider's name);
+   - copy the registrar-owned fields the registrar reported (see Field ownership);
+   - clear `registrar_missing_since`.
+   An existing manual domain with the same name is taken over, but keeps its notes, tags and price.
+   New domains are picked up first by the next `rdap-refresh` run.
+3. Linked domains the registrar no longer returns (transferred out, expired, or API access turned
+   off) get `registrar_missing_since` set once. **They are never deleted**; the list and domain
+   page flag them. The flag clears if the domain reappears.
+4. Record `last_sync_at` and either clear `last_sync_error` or store a readable message. Raw
+   responses and credentials are never stored or logged.
+
+Removing a connection makes its domains `manual` and editable again. It does not delete them.
 
 ### Email notifications (`app/.server/notifications`)
 The `expiry-check` job runs hourly (minute 5). For each user with reminders on:
@@ -228,7 +249,7 @@ nodemailer SMTP URL works). Tests use a fake `Mailer`, plus an in-process SMTP s
 |---|---|---|
 | `expiry-check` | hourly at :05 | Sends due expiry digests (idempotent, catch-up) |
 | `rdap-refresh` | every 30 min, ≤50 domains | Refreshes domains checked more than 24h ago |
-| `registrar-sync` | every 6h | Syncs every registrar connection |
+| `registrar-sync` | every 6h at :17 | Syncs every registrar connection, one at a time |
 
 Jobs use `croner` with `protect: true`, so a slow run never overlaps the next one. They only run where
 `JOBS_ENABLED=true`. With several replicas (SaaS), enable jobs on exactly one. Notifications stay
