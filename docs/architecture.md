@@ -165,13 +165,14 @@ Every provider implements one interface (`types.ts`):
 
 ```ts
 interface RegistrarProvider<C> {
-  id: ProviderId; // "cloudflare" | "gandi" | "godaddy" | "namecom" | "porkbun" | "spaceship"
+  id: ProviderId; // cloudflare, gandi, godaddy, namecheap, namecom, namesilo, ovh, porkbun, spaceship
   displayName: string;
   setupHelp: string;                      // shown on the connect form
   fields: CredentialField[];              // drives the connect form (secret fields are never echoed)
   credentialsSchema: z.ZodType<C>;        // validates the form input
   verify(creds: C, fetch): Promise<void>; // throws RegistrarError with a user-readable message
   listDomains(creds: C, fetch): Promise<RegistrarDomain[]>;
+  formDefaults?(fetch): Promise<Record<string, string>>; // pre-fill the connect form
 }
 
 type RegistrarDomain = {
@@ -198,12 +199,15 @@ Checked against the providers' docs and live error responses in 2026-11:
 | Gandi | Personal access token (Bearer) | `GET https://api.gandi.net/v5/domain/domains`, `page`/`per_page` (100), stop on a short page | `autorenew` is a boolean in the list; nameservers only when `nameserver.hosts` is present (not for LiveDNS). Bad token → HTTP 403. |
 | Name.com | Username + API token (HTTP Basic) | `GET https://api.name.com/core/v1/domains`, `perPage` ≤ 1000, follow `nextPage` | The only one reporting **renewal prices** (`renewalPrice`, USD), which then replace the user's price. Bad credentials → HTTP 401 `{message}`. |
 | Spaceship | API key + secret (`X-API-Key`, `X-API-Secret`), scope `domains:read` | `GET https://spaceship.dev/api/v1/domains?take=100&skip=…` with `total` | Errors are `application/problem+json` with `detail`. Rate limit 300 requests / 300 s. |
+| Namecheap | Username + API key, plus the server's public IPv4 (`ClientIp`) | `POST https://api.namecheap.com/xml.response` with `Command=namecheap.domains.getList`, `PageSize` 100, `Paging/TotalItems` | **XML**, dates `M/D/YYYY`, errors as `Status="ERROR"` with HTTP 200. API access needs ≥20 domains, $50 balance or $50 spent in 2 years, and the server's IP on the whitelist. The connect form pre-fills the IP from `api.ipify.org` (the only call to a non-registrar service, made when that form is opened). |
+| NameSilo | API key | `GET https://www.namesilo.com/api/listDomains?version=1&type=xml&key=…` (paged), then `getDomainInfo` per domain (3 at a time) | **XML**: `listDomains` has `created`/`expires`; auto-renew (`Yes`/`No`) and nameservers need `getDomainInfo`. A failed `getDomainInfo` keeps the domain with just its dates. Reply code `300` = success, `110` = invalid key. |
+| OVHcloud | Region (EU/CA/US) + application key, application secret, consumer key | `GET https://api.{eu,ca,us}.ovhcloud.com/1.0/domain`, then `/domain/{name}/serviceInfos` per domain (4 at a time) | Signed requests: `X-Ovh-Signature = "$1$" + sha1(AS+CK+METHOD+URL+BODY+TS)` with the server time from `/auth/time`, matching the official go-ovh client (its test vector is in our tests). Keys need `GET /domain` and `GET /domain/*`. |
 
 Only Name.com reports renewal prices; for the others the price stays user-entered.
 
-Not supported yet, and why: Namecheap (the API requires allow-listing the server's IP address and
-uses XML), OVH (signed requests with three keys), NameSilo (expiry dates need one extra request per
-domain).
+XML responses (Namecheap, NameSilo) are read with `registrars/xml.ts`, a small tested reader for
+flat attribute-based XML, rather than adding a parser dependency. Per-domain requests (NameSilo,
+OVHcloud) go through `mapConcurrent()` to stay polite with rate limits.
 
 **Connecting** (`connectRegistrar()`): validate the form with the provider's schema → `verify()`
 against the live API → store the connection with AES-GCM-encrypted credentials → run the first

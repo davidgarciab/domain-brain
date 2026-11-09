@@ -219,4 +219,8 @@ manager (systemd, pm2, …) to keep it running.
   logs (`docker compose logs domain-brain`). Reminders are sent after 08:00 in the user's timezone.
 - **A registrar connection says the credentials can't be decrypted:** `APP_SECRET` changed. Remove
   the connection and add it again.
+- **Namecheap says the IP is invalid:** Namecheap only accepts API calls from whitelisted IPv4
+  addresses. Add your server's public IPv4 under Profile → Tools → API Access → Whitelisted IPs.
+  The connect form suggests the address by asking `api.ipify.org`; behind NAT or a proxy, use the
+  address your server's outgoing traffic actually uses.
 - **Health check:** `GET /healthz` returns `{"status":"ok"}` when the app and database are up.

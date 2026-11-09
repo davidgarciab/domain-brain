@@ -4,7 +4,10 @@ export const PROVIDER_IDS = [
   "cloudflare",
   "gandi",
   "godaddy",
+  "namecheap",
   "namecom",
+  "namesilo",
+  "ovh",
   "porkbun",
   "spaceship",
 ] as const;
@@ -31,6 +34,8 @@ export type CredentialField = {
   secret: boolean;
   required: boolean;
   hint?: string;
+  /** Renders a select instead of a text input. */
+  options?: { value: string; label: string }[];
 };
 
 export type Fetch = typeof globalThis.fetch;
@@ -45,6 +50,8 @@ export interface RegistrarProvider<C = Record<string, string>> {
   /** Throws RegistrarError with a user-facing message if the credentials don't work. */
   verify: (credentials: C, fetch: Fetch) => Promise<void>;
   listDomains: (credentials: C, fetch: Fetch) => Promise<RegistrarDomain[]>;
+  /** Optional pre-filled values for the connect form (e.g. the server's public IP). */
+  formDefaults?: (fetch: Fetch) => Promise<Record<string, string>>;
 }
 
 /** A failure the user should see (stored in registrar_connection.last_sync_error). */

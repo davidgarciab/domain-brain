@@ -28,7 +28,7 @@ env var, or a manual setup step must be justified and recorded here.
 - **Expiry notifications** by email (SMTP) at configurable days before expiry (default 30, 7, 1),
   plus one alert when a domain expires; sent after 08:00 in the user's timezone, with catch-up.
 - **Registrar API sync** (import/refresh domains, read-only) for **Cloudflare, Gandi, GoDaddy,
-  Name.com, Porkbun, Spaceship**.
+  Namecheap, Name.com, NameSilo, OVHcloud, Porkbun, Spaceship**.
   Adding a registrar = one new file implementing `RegistrarProvider`, registered in
   `registrars/index.ts`, with fixture-based tests. Check its API against the provider's current
   docs; they change (Cloudflare retired its old Registrar endpoint in 2026).
@@ -86,8 +86,8 @@ app/
                                  form.ts (add/edit form parsing → field errors)
     rdap/                        client.ts (bootstrap + lookup + parse), refresh.ts (apply results,
                                  per-domain refresh, stale-batch job)
-    registrars/                  types.ts (provider interface), http.ts, cloudflare.ts, porkbun.ts,
-                                 godaddy.ts, index.ts (provider map), service.ts (connections + sync)
+    registrars/                  types.ts (provider interface), http.ts, xml.ts, one file per
+                                 provider, index.ts (provider map), service.ts (connections + sync)
     notifications/               settings.ts (per-user settings + form), expiry.ts (due-threshold
                                  logic + hourly job), email.ts (digest rendering), mailer.ts (SMTP)
     jobs/                        Scheduler setup and job definitions

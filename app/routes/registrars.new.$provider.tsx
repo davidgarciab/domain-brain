@@ -20,7 +20,11 @@ function load(id: string) {
 export async function loader({ context, request, params }: Route.LoaderArgs) {
   await requireUser(context, request);
   const p = load(params.provider);
-  return { provider: { id: p.id, name: p.displayName, help: p.setupHelp, fields: p.fields } };
+  const defaults = (await p.formDefaults?.(globalThis.fetch)) ?? {};
+  return {
+    provider: { id: p.id, name: p.displayName, help: p.setupHelp, fields: p.fields },
+    defaults,
+  };
 }
 
 export async function action({ context, request, params }: Route.ActionArgs) {
@@ -49,9 +53,9 @@ export async function action({ context, request, params }: Route.ActionArgs) {
 }
 
 export default function ConnectRegistrar({ loaderData, actionData }: Route.ComponentProps) {
-  const { provider } = loaderData;
+  const { provider, defaults } = loaderData;
   const errors: Record<string, string> = actionData?.errors ?? {};
-  const values: Record<string, string> = actionData?.values ?? {};
+  const values: Record<string, string> = actionData?.values ?? defaults;
   const pending = useNavigation().state === "submitting";
 
   return (
@@ -88,19 +92,35 @@ export default function ConnectRegistrar({ loaderData, actionData }: Route.Compo
             error={errors[f.name]}
             hint={f.hint}
           >
-            <input
-              id={f.name}
-              name={f.name}
-              type={f.secret ? "password" : "text"}
-              className={`${inputClass} font-mono`}
-              defaultValue={f.secret ? undefined : values[f.name]}
-              required={f.required}
-              spellCheck={false}
-              autoCapitalize="none"
-              autoComplete={f.secret ? "new-password" : "off"}
-              aria-invalid={errors[f.name] ? true : undefined}
-              aria-describedby={errors[f.name] ? `${f.name}-error` : undefined}
-            />
+            {f.options ? (
+              <select
+                id={f.name}
+                name={f.name}
+                className={inputClass}
+                defaultValue={values[f.name] ?? f.options[0]?.value}
+                aria-invalid={errors[f.name] ? true : undefined}
+              >
+                {f.options.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id={f.name}
+                name={f.name}
+                type={f.secret ? "password" : "text"}
+                className={`${inputClass} font-mono`}
+                defaultValue={f.secret ? undefined : values[f.name]}
+                required={f.required}
+                spellCheck={false}
+                autoCapitalize="none"
+                autoComplete={f.secret ? "new-password" : "off"}
+                aria-invalid={errors[f.name] ? true : undefined}
+                aria-describedby={errors[f.name] ? `${f.name}-error` : undefined}
+              />
+            )}
           </FormField>
         ))}
         <p className="text-xs text-gray-500">

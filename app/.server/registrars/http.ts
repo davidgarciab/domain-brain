@@ -57,3 +57,48 @@ export function normalizeNameservers(list: string[] | null | undefined): string[
     .filter(Boolean)
     .sort();
 }
+
+/** Like Promise.all(items.map(fn)), but with at most `limit` calls in flight. */
+export async function mapConcurrent<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i] as T);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+/** fetch returning text (for XML APIs), with the same timeout and error mapping as requestJson. */
+export async function requestText(
+  fetch: Fetch,
+  provider: string,
+  url: string,
+  init: RequestInit = {},
+): Promise<{ status: number; body: string }> {
+  let res: Response;
+  try {
+    res = await fetch(url, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS) });
+  } catch (error) {
+    if (error instanceof Error && error.name === "TimeoutError") {
+      throw new RegistrarError(`${provider} did not respond in time. Try again later.`);
+    }
+    throw new RegistrarError(`Could not reach ${provider}. Check the server's internet access.`);
+  }
+  if (res.status === 429) {
+    throw new RegistrarError(`${provider} is rate limiting requests. Try again in a few minutes.`);
+  }
+  if (res.status >= 500) {
+    throw new RegistrarError(
+      `${provider} had a server error (HTTP ${res.status}). Try again later.`,
+    );
+  }
+  return { status: res.status, body: await res.text().catch(() => "") };
+}
