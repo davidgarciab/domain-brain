@@ -25,3 +25,36 @@ export function formatDate(date: string): string {
     timeZone: "UTC",
   });
 }
+
+/** `YYYY-MM-DD` plus `days` (may be negative). */
+export function addDays(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
+}
+
+/** Today's date and hour in an IANA timezone. Falls back to UTC for unknown zones. */
+export function localNow(timeZone: string, now: Date = new Date()): { date: string; hour: number } {
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(now);
+  } catch {
+    return localNow("UTC", now);
+  }
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return { date: `${get("year")}-${get("month")}-${get("day")}`, hour: Number(get("hour")) };
+}
+
+export function isTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}

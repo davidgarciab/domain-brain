@@ -15,7 +15,10 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
             Domain Brain
           </Link>
           <div className="flex items-center gap-4 text-sm">
-            <span className="text-gray-500">{loaderData.user.email}</span>
+            <span className="hidden text-gray-500 sm:inline">{loaderData.user.email}</span>
+            <Link to="/settings" className="underline">
+              Settings
+            </Link>
             <Form method="post" action="/logout">
               <button type="submit" className="underline">
                 Sign out

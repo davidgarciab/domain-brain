@@ -25,7 +25,8 @@ env var, or a manual setup step must be justified and recorded here.
 - Multi-user, **personal accounts**: each user owns their domains. No teams/orgs in the MVP.
 - Manual domain CRUD with registrar, expiry date, renewal price, auto-renew flag, notes, and tags.
 - **RDAP auto-lookup**: fill in and refresh expiry, registrar, nameservers, and status from public RDAP.
-- **Expiry notifications** by email (SMTP) at configurable days before expiry (default 30, 7, 1).
+- **Expiry notifications** by email (SMTP) at configurable days before expiry (default 30, 7, 1),
+  plus one alert when a domain expires; sent after 08:00 in the user's timezone, with catch-up.
 - **Registrar API sync** (import/refresh domains) for **Cloudflare, Porkbun, GoDaddy**.
 
 Out of scope for the MVP: teams/orgs, DNS record management, billing, WHOIS (port 43) fallback,
@@ -80,7 +81,8 @@ app/
     rdap/                        client.ts (bootstrap + lookup + parse), refresh.ts (apply results,
                                  per-domain refresh, stale-batch job)
     registrars/                  Provider interface + cloudflare.ts, porkbun.ts, godaddy.ts
-    notifications/               Expiry check + email sending
+    notifications/               settings.ts (per-user settings + form), expiry.ts (due-threshold
+                                 logic + hourly job), email.ts (digest rendering), mailer.ts (SMTP)
     jobs/                        Scheduler setup and job definitions
     crypto.ts                    AES-256-GCM encryption for stored registrar credentials
 tests/                           Integration tests + helpers (unit tests live next to source as *.test.ts)
@@ -91,8 +93,7 @@ Dockerfile
 ```
 
 (*) Exception: `server.ts` reads `NODE_ENV` to decide between dev and prod before any app code loads.
-Directories for features not built yet (`registrars/`, `notifications/`) are created when those
-features land.
+The `registrars/` directory is created when that feature lands.
 
 ## Configuration (env vars)
 

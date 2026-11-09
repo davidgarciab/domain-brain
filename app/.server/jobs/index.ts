@@ -1,18 +1,30 @@
 import { Cron } from "croner";
 import type { Db } from "../db";
+import { env } from "../env";
 import { logger } from "../logger";
+import { runExpiryCheck } from "../notifications/expiry";
+import { mailer } from "../notifications/mailer";
 import { rdapClient } from "../rdap/client";
 import { refreshStaleDomains } from "../rdap/refresh";
 
 /**
  * Background jobs (see docs/architecture.md → "Background jobs").
  * Each job runs in-process; `protect: true` prevents overlapping runs.
- * Still to come: expiry-check, registrar-sync.
+ * Still to come: registrar-sync.
  */
 type JobDefinition = { name: string; schedule: string; run: () => Promise<unknown> };
 
 function definitions(db: Db): JobDefinition[] {
   return [
+    {
+      name: "expiry-check",
+      schedule: "5 * * * *",
+      run: async () => {
+        const m = mailer();
+        if (!m) return { skipped: "SMTP_URL not set" };
+        return runExpiryCheck(db, m, { appUrl: env().APP_URL });
+      },
+    },
     {
       name: "rdap-refresh",
       schedule: "*/30 * * * *",

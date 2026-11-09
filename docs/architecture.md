@@ -105,15 +105,18 @@ while at least one domain uses it; the service deletes unused tags. `color` is r
 | created_at / updated_at | text ts | |
 
 ### `notification_settings`
-`user_id` PK, `email_enabled` (0/1, default 1), `days_before` (JSON `number[]`, default `[30,7,1]`),
-`timezone` (IANA name, default `UTC`).
+`user_id` PK, `email_enabled` (0/1, default 1), `days_before` (JSON `number[]`, default `[30,7,1]`,
+1–365, at most 5), `timezone` (IANA name, default `UTC`). A user without a row gets the defaults,
+so reminders are on for new accounts. The row is created the first time the user saves settings.
 
 ### `notification_log`
-`id`, `domain_id` FK, `expires_at` (the expiry this alert was about), `days_before`, `sent_at`.
-There is a **unique index on `(domain_id, expires_at, days_before)`**. Before sending, we insert the
-row. If the insert hits the unique constraint, the alert was already sent. This makes notifications
-idempotent, even if two processes run jobs by mistake, and a renewal (a new `expires_at`) resets
-the alerts.
+`id`, `domain_id` FK, `expires_at` (the expiry this alert was about), `days_before` (the threshold;
+`0` = "expires today / recently expired"), `sent_at`. There is a **unique index on
+`(domain_id, expires_at, days_before)`**. Before sending, we insert the row with
+`ON CONFLICT DO NOTHING`; if nothing was inserted, the alert was already sent (or claimed by
+another process). This makes notifications idempotent, even if two processes run jobs by mistake.
+A renewal (a new `expires_at`) resets the alerts. If the email fails to send, the claimed rows are
+deleted so the next run retries.
 
 ### Domain list and search
 The list is sorted by expiry (soonest first, unknown last), then name. Search (name in Unicode or
@@ -197,16 +200,33 @@ type RegistrarDomain = {
 Deleting a connection unlinks its domains, which become `manual`. It does not delete them.
 
 ### Email notifications (`app/.server/notifications`)
-The `expiry-check` job runs hourly. For each user with `email_enabled`, it finds domains where
-`expires_at - today(user tz)` is in `days_before`, inserts into `notification_log` (see the
-idempotency note above) and sends **one digest email per user per run**. If `SMTP_URL` is unset,
-the job is a no-op and the settings page shows "Email not configured on this server".
+The `expiry-check` job runs hourly (minute 5). For each user with reminders on:
+
+1. Skip the user if it is before **08:00 in their timezone**. Anything due earlier goes out on the
+   first run after 08:00.
+2. Find their domains expiring between 7 days ago and `max(days_before)` days from their local today.
+3. For each one, work out the **due threshold** (`dueThreshold()`): the smallest threshold whose
+   window the domain is in (`days_left <= threshold`), or `0` if it expires today or expired in the
+   last 7 days. With `[30, 7, 1]`: 25 days left → 30; 5 days left → 7.
+   - This catches up instead of matching exact days. If the server was down on "day 7", the 7-day
+     alert still goes out on day 5. A domain added with 3 days left gets one alert, not three.
+   - Each threshold fires at most once per `expires_at` (see `notification_log`).
+4. Claim the due alerts in `notification_log`, then send **one digest email per user per run**:
+   soonest first, each with a link to the domain page, plus a link to settings.
+
+If `SMTP_URL` is unset, the job is a no-op. The settings page then says email isn't configured
+and hides the "Send test email" button. That button sends a test message to the user's own address,
+so self-hosters can check their SMTP setup.
+
+Mailer: `createSmtpMailer()` wraps nodemailer (`SMTP_URL` is passed straight to it, so any
+nodemailer SMTP URL works). Tests use a fake `Mailer`, plus an in-process SMTP sink
+(`tests/helpers/smtp.ts`) to check that real SMTP delivery works.
 
 ## 5. Background jobs
 
 | Job | Schedule | What it does |
 |---|---|---|
-| `expiry-check` | hourly | Sends due expiry emails (idempotent) |
+| `expiry-check` | hourly at :05 | Sends due expiry digests (idempotent, catch-up) |
 | `rdap-refresh` | every 30 min, ≤50 domains | Refreshes domains checked more than 24h ago |
 | `registrar-sync` | every 6h | Syncs every registrar connection |
 
