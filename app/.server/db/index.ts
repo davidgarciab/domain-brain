@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 import SqliteDatabase from "better-sqlite3";
 import { Kysely, PostgresDialect, SqliteDialect } from "kysely";
 import pg from "pg";
+import { logger } from "../logger";
 import type { Database } from "./schema";
 
 export type Dialect = "sqlite" | "postgres";
@@ -36,5 +37,11 @@ export function createDb(url: string): DbHandle {
   }
 
   const pool = new pg.Pool({ connectionString: url, max: 10 });
+  // Postgres can drop idle connections (restart, failover, maintenance). Without a listener,
+  // pg turns that into an uncaught exception that crashes the process. The pool replaces
+  // the connection on next use, so logging is enough.
+  pool.on("error", (error) => {
+    logger().warn({ err: error }, "idle Postgres connection closed");
+  });
   return { dialect, db: new Kysely<Database>({ dialect: new PostgresDialect({ pool }) }) };
 }
