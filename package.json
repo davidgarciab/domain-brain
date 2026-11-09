@@ -1,9 +1,18 @@
 {
   "name": "domain-brain",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Keep track of the domains you own",
   "license": "AGPL-3.0-only",
+  "author": "David Garcia Berenguer (https://github.com/davidgarciab)",
+  "homepage": "https://github.com/davidgarciab/domain-brain",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davidgarciab/domain-brain.git"
+  },
+  "bugs": {
+    "url": "https://github.com/davidgarciab/domain-brain/issues"
+  },
   "type": "module",
   "packageManager": "pnpm@12.18.0",
   "engines": {
@@ -18,7 +27,8 @@
     "format": "biome check --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:migration": "node scripts/new-migration.ts"
+    "db:migration": "node scripts/new-migration.ts",
+    "cli": "node --env-file-if-exists=.env cli.ts"
   },
   "dependencies": {
     "@react-router/express": "^8.5.1",

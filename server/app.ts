@@ -8,6 +8,7 @@ import { logger } from "~/.server/logger";
 import { boot, shutdown } from "~/.server/runtime";
 import { runtimeContext } from "~/context";
 
+export { runCli } from "./cli";
 export { boot, env, shutdown };
 
 export const app: express.Express = express();

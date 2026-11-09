@@ -268,8 +268,8 @@ correct even if you get this wrong, but RDAP and registrar calls would be duplic
   is created by turning registration on, signing up, then turning it off. This is documented in the
   self-hosting guide.
 - Password reset by email when SMTP is configured. Without SMTP, an operator resets a password with
-  the CLI command `pnpm user:reset-password <email>` (inside the container:
-  `docker exec … node build/cli.js reset-password <email>`).
+  `node cli.ts reset-password <email>` (in Docker: `docker compose exec domain-brain node cli.ts
+  reset-password <email>`). It prints a new random password and deletes the user's sessions.
 - Post-MVP: OAuth providers, passkeys, TOTP. Better Auth supports these as plugins.
 
 ## 7. Deployment
@@ -277,45 +277,34 @@ correct even if you get this wrong, but RDAP and registrar calls would be duplic
 ### Docker image
 - Multi-stage build on `node:24-slim`: install with `pnpm install --frozen-lockfile`, build, then
   `pnpm prune --prod`. `better-sqlite3` uses its prebuilt glibc binary. The final image runs
-  `node server.ts` with the `build/` output and production `node_modules`.
+  `node server.ts` with the `build/` output and production `node_modules`. `cli.ts` (admin
+  commands) sits next to it and loads the same server bundle, which exports `runCli()`.
 - Runs as the non-root `node` user. `WORKDIR /app`, `VOLUME /data`, `EXPOSE 3000`.
 - The default `DATABASE_URL` inside the image is `file:/data/domain-brain.db`.
 - Has a `HEALTHCHECK` on `/healthz`.
-- Published to `ghcr.io/OWNER/domain-brain` as `:latest` and `:vX.Y.Z` tags, for multiple
-  architectures (amd64 and arm64, for Raspberry Pi and ARM VPS users).
+- Published by `.github/workflows/release.yml` on `vX.Y.Z` tags to `ghcr.io/davidgarciab/domain-brain`
+  as `:X.Y.Z`, `:X.Y` and `:latest`, for amd64 and arm64 (Raspberry Pi and ARM VPS users).
 
 ### Self-hosting (target: under 2 minutes)
-```yaml
-# deploy/docker-compose.yml
-services:
-  domain-brain:
-    image: ghcr.io/OWNER/domain-brain:latest
-    ports: ["3000:3000"]
-    environment:
-      APP_SECRET: change-me-to-a-long-random-string   # openssl rand -hex 32
-      APP_URL: http://localhost:3000
-      # SMTP_URL: smtps://user:pass@smtp.example.com:465
-    volumes: ["./data:/data"]
-    restart: unless-stopped
-```
-A separate `deploy/docker-compose.postgres.yml` shows the optional Postgres setup.
+The user-facing guide is [`docs/self-hosting.md`](self-hosting.md): Compose quick start,
+configuration, email, reverse proxy, platforms, Postgres, backups, upgrades, admin commands.
+`deploy/docker-compose.yml` (SQLite) and `deploy/docker-compose.postgres.yml` are the supported
+Compose files; both were tested with the built image.
 
-**Backups**: SQLite means you back up one file. The docs recommend
-`sqlite3 /data/domain-brain.db ".backup ..."` or stopping the container and copying `./data`.
-Postgres users use `pg_dump`.
-
-**Upgrades**: `docker compose pull && docker compose up -d`. Migrations run automatically on boot.
-
-### One-click PaaS templates (`deploy/`)
+### Hosting platforms
 | Platform | File | Notes |
 |---|---|---|
-| Railway | template (button in the README) | Volume mounted at `/data` |
-| Render | `render.yaml` blueprint | Needs a persistent disk at `/data` (paid plan), or the Render Postgres option |
-| Fly.io | `fly.toml` | `fly volumes create data`; one machine with SQLite |
-| Coolify | uses `docker-compose.yml` as is | |
+| Render | `render.yaml` (repo root; "Deploy to Render" button in the README) | Prebuilt image, 1 GB disk at `/data`, generated `APP_SECRET`, Starter plan: free instances sleep and have no disks |
+| Fly.io | `deploy/fly.toml` | Volume `data` at `/data`; `auto_stop_machines = "off"` and one machine always running |
+| Railway | none (steps in the guide) | Deploy the image, add a volume at `/data`. A template button can be published from the Railway dashboard later |
+| Coolify & co. | `deploy/docker-compose.yml` as is | |
 
-Each template generates `APP_SECRET` automatically where the platform supports it. With SQLite on a
-PaaS, there is **one instance and a persistent volume**. The docs say this clearly.
+**One always-on instance.** Jobs run in-process, so platforms that sleep idle apps would silently
+stop reminders and syncs. All templates avoid that.
+
+**`APP_URL` detection.** Auth and React Router's CSRF check need the public URL. If `APP_URL` is
+unset, `env.ts` derives it from `RENDER_EXTERNAL_URL`/`RENDER_EXTERNAL_HOSTNAME`,
+`RAILWAY_PUBLIC_DOMAIN` or `FLY_APP_NAME`.
 
 ### Hosted SaaS
 The same image with `DATABASE_URL=postgres://…` (managed Postgres), `REGISTRATION_ENABLED=true`, a

@@ -28,10 +28,23 @@ export type Env = z.infer<typeof schema>;
 
 export class EnvError extends Error {}
 
+/**
+ * The public URL that hosting platforms expose, so one-click deploys work without setting
+ * APP_URL by hand. An explicit APP_URL always wins.
+ */
+function platformUrl(e: Record<string, string | undefined>): string | undefined {
+  if (e.RENDER_EXTERNAL_URL) return e.RENDER_EXTERNAL_URL;
+  if (e.RENDER_EXTERNAL_HOSTNAME) return `https://${e.RENDER_EXTERNAL_HOSTNAME}`;
+  if (e.RAILWAY_PUBLIC_DOMAIN) return `https://${e.RAILWAY_PUBLIC_DOMAIN}`;
+  if (e.FLY_APP_NAME) return `https://${e.FLY_APP_NAME}.fly.dev`;
+  return undefined;
+}
+
 export function parseEnv(source: Record<string, string | undefined>): Env {
   const input = { ...source };
   // Empty strings (e.g. `SMTP_URL=` in a compose file) mean "unset".
   for (const key of Object.keys(input)) if (input[key] === "") delete input[key];
+  input.APP_URL ??= platformUrl(input);
   // Don't make contributors generate a secret just to run `pnpm dev`.
   if (input.NODE_ENV === "development" && !input.APP_SECRET) input.APP_SECRET = DEV_SECRET;
 

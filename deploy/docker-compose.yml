@@ -4,7 +4,7 @@
 # 3. Open http://localhost:3000 and create your account
 services:
   domain-brain:
-    image: ghcr.io/OWNER/domain-brain:latest
+    image: ghcr.io/davidgarciab/domain-brain:latest
     ports:
       - "3000:3000"
     environment:

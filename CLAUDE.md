@@ -65,7 +65,9 @@ webhooks/Slack notifications, public REST API. Don't build these without updatin
 server.ts                        Process entry, run directly by Node 24 (type stripping): Express,
                                  Vite in dev / built assets in prod, boot, listen, graceful shutdown.
                                  No app imports and no path aliases here.
-server/app.ts                    Express app (healthz + React Router handler); the Vite SSR build entry
+server/app.ts                    Express app (healthz + React Router handler); the Vite SSR build entry.
+                                 Also exports runCli() from server/cli.ts (admin commands)
+cli.ts                           Admin CLI entry (`node cli.ts …`), run by Node; loads the built bundle
 app/
   root.tsx, routes.ts            React Router root and route config
   context.ts                     `runtimeContext`: gives loaders/actions the Runtime (db, auth)
@@ -92,8 +94,12 @@ app/
 tests/                           Integration tests + helpers (unit tests live next to source as *.test.ts)
 scripts/                         Dev scripts run directly by Node (e.g. new-migration.ts)
 deploy/                          docker-compose.yml, docker-compose.postgres.yml, PaaS templates
-docs/                            architecture.md, self-hosting.md
+docs/                            architecture.md, self-hosting.md (user-facing; keep it in sync)
+render.yaml                      Render Blueprint (must live at the repo root)
+.github/workflows/               ci.yml (lint, typecheck, tests on both DBs, build, Docker build),
+                                 release.yml (tag vX.Y.Z → multi-arch image on GHCR + GitHub release)
 Dockerfile
+CHANGELOG.md
 ```
 
 (*) Exception: `server.ts` reads `NODE_ENV` to decide between dev and prod before any app code loads.
@@ -105,7 +111,7 @@ Only `APP_SECRET` is required. Everything else has a working default.
 | Var | Default | Purpose |
 |---|---|---|
 | `APP_SECRET` | — (**required**, ≥32 chars) | Session signing and the key for encrypting registrar credentials |
-| `APP_URL` | `http://localhost:3000` | Public base URL (auth callbacks, links in emails) |
+| `APP_URL` | `http://localhost:3000`, or derived from Render/Railway/Fly variables | Public base URL (auth, CSRF check, links in emails) |
 | `PORT` | `3000` | HTTP port |
 | `DATABASE_URL` | `file:./data/domain-brain.db` | `file:` → SQLite; `postgres://` → Postgres |
 | `REGISTRATION_ENABLED` | `true` | Self-hosters set `false` after creating their accounts |
@@ -116,6 +122,15 @@ Only `APP_SECRET` is required. Everything else has a working default.
 
 Adding a new env var: add it to `app/.server/env.ts`, this table, and `docs/self-hosting.md`. New vars
 **must have a safe default** unless there is no way around it.
+
+## Releases
+
+- Owner: David Garcia Berenguer ([@davidgarciab](https://github.com/davidgarciab)). Repo:
+  `github.com/davidgarciab/domain-brain`, image: `ghcr.io/davidgarciab/domain-brain`.
+- Release = bump `package.json` version, move CHANGELOG "Unreleased" entries under the version, tag
+  `vX.Y.Z`, push the tag. `release.yml` does the rest.
+- User-visible changes get a CHANGELOG entry in the same change. Breaking changes for self-hosters
+  (config, data, upgrade steps) must say so explicitly.
 
 ## Commands
 
@@ -129,6 +144,7 @@ pnpm typecheck      # react-router typegen + tsc
 pnpm lint           # biome check
 pnpm format         # biome format --write
 pnpm db:migration <name>   # scaffold app/.server/db/migrations/NNNN_<name>.ts
+pnpm cli <command>         # admin CLI against a build (pnpm build first): list-users, reset-password
 ```
 
 Notes:

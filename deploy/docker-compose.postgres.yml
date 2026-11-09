@@ -1,7 +1,7 @@
 # Domain Brain with Postgres instead of SQLite (optional; SQLite is enough for most setups).
 services:
   domain-brain:
-    image: ghcr.io/OWNER/domain-brain:latest
+    image: ghcr.io/davidgarciab/domain-brain:latest
     ports:
       - "3000:3000"
     environment:

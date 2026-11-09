@@ -47,4 +47,14 @@ describe("parseEnv", () => {
       "postgresql://u@h/db",
     );
   });
+
+  it("derives APP_URL from hosting platforms unless it is set", () => {
+    const url = (e: Record<string, string>) => parseEnv({ APP_SECRET: secret, ...e }).APP_URL;
+    expect(url({ RENDER_EXTERNAL_URL: "https://db.onrender.com" })).toBe("https://db.onrender.com");
+    expect(url({ RAILWAY_PUBLIC_DOMAIN: "db.up.railway.app" })).toBe("https://db.up.railway.app");
+    expect(url({ FLY_APP_NAME: "my-db" })).toBe("https://my-db.fly.dev");
+    expect(url({ FLY_APP_NAME: "my-db", APP_URL: "https://domains.example.com" })).toBe(
+      "https://domains.example.com",
+    );
+  });
 });

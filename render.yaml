@@ -1,0 +1,22 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+# Deploy: https://render.com/deploy?repo=https://github.com/davidgarciab/domain-brain
+# Uses the "starter" plan: free instances sleep (which stops expiry reminders) and have no disk.
+services:
+  - type: web
+    name: domain-brain
+    runtime: image
+    image:
+      url: ghcr.io/davidgarciab/domain-brain:latest
+    plan: starter
+    healthCheckPath: /healthz
+    envVars:
+      - key: APP_SECRET
+        generateValue: true
+      - key: SMTP_URL
+        sync: false # optional, asked for in the dashboard
+      - key: EMAIL_FROM
+        sync: false
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
