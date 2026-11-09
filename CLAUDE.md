@@ -36,17 +36,17 @@ webhooks/Slack notifications, public REST API. Don't build these without updatin
 | Area | Decision | Why |
 |---|---|---|
 | Language | TypeScript (strict), ESM only | Requested |
-| Package manager | pnpm (pinned via `packageManager` in `package.json`) | Requested |
+| Package manager | pnpm 12 (pinned via `packageManager` in `package.json`). Packages allowed to run install scripts are listed under `allowBuilds` in `pnpm-workspace.yaml` | Requested |
 | Runtime | Node.js 24 LTS | Current LTS |
 | Repo shape | **Single package**, not a monorepo | Simplest; split only if a second deployable appears |
-| Framework | **React Router v7** (framework mode, SSR) | One full-stack app; plain Node server; no vendor lean |
-| HTTP server | Custom `server.ts` using Express + `@react-router/express` | One process for HTTP, migrations, and scheduled jobs |
+| Framework | **React Router v8** (framework mode, SSR) | One full-stack app; plain Node server; no vendor lean |
+| HTTP server | Express + `@react-router/express`: tiny `server.ts` entry run by Node, app in `server/app.ts` bundled by Vite | One process for HTTP, migrations, and scheduled jobs |
 | Database | **SQLite (default) or Postgres**, chosen by `DATABASE_URL` | SQLite for zero-ops self-host; Postgres for the SaaS |
 | DB access | **Kysely** (`better-sqlite3` and `pg` dialects) | One query layer and one migration set for both dialects |
-| Migrations | Kysely `Migrator`, TS migrations in `app/.server/db/migrations`, run automatically on boot | No manual step for self-hosters |
-| Auth | **Better Auth** (email + password, DB sessions), using our Kysely instance | Supports SQLite and Postgres; self-contained |
+| Migrations | Kysely `Migrator` (`kysely/migration`), TS migrations in `app/.server/db/migrations` bundled via `import.meta.glob`, run automatically on boot | No manual step for self-hosters |
+| Auth | **Better Auth** (email + password, DB sessions), using our Kysely instance; its tables are created by our migrations | Supports SQLite and Postgres; self-contained |
 | Validation | Zod (form input, env, registrar API responses) | One validation library everywhere |
-| UI | Tailwind CSS v4 + shadcn/ui components (copied into `app/components/ui`) | No runtime UI dependency to fight |
+| UI | Tailwind CSS v4; shadcn/ui components (copied into `app/components/ui`) once we need richer UI (not set up yet) | No runtime UI dependency to fight |
 | Scheduler | In-process with `croner`, enabled by `JOBS_ENABLED` | No Redis or queue service |
 | Email | Nodemailer over SMTP (`SMTP_URL`) | Works with any provider; optional |
 | Logging | pino (JSON in production, pretty in development) | |
@@ -58,27 +58,39 @@ webhooks/Slack notifications, public REST API. Don't build these without updatin
 ## Repository layout
 
 ```
+server.ts                        Process entry, run directly by Node 24 (type stripping): Express,
+                                 Vite in dev / built assets in prod, boot, listen, graceful shutdown.
+                                 No app imports and no path aliases here.
+server/app.ts                    Express app (healthz + React Router handler); the Vite SSR build entry
 app/
-  root.tsx, routes.ts            React Router entry and route config
+  root.tsx, routes.ts            React Router root and route config
+  context.ts                     `runtimeContext`: gives loaders/actions the Runtime (db, auth)
   routes/                        Route modules (loaders/actions + UI). Thin: call services.
-  components/                    React components; components/ui = shadcn
+  components/                    React components (components/ui = shadcn, when added)
   lib/                           Code shared by client and server (pure, no secrets, no DB)
   .server/                       Server-only code (never importable from the client bundle)
-    env.ts                       Zod-validated env; the ONLY place that reads process.env
-    db/                          Kysely instance, dialect selection, schema types, migrations/
-    auth/                        Better Auth config + session helpers
+    env.ts                       Zod-validated env; the ONLY place that reads process.env (*)
+    logger.ts                    pino
+    runtime.ts                   boot(): DB → migrations → auth → jobs. Cached on globalThis
+    db/                          index.ts (createDb, dialect), schema.ts (row types), migrate.ts,
+                                 migrations/NNNN_name.ts
+    auth/                        auth.ts (Better Auth config), session.ts (getUser/requireUser)
     domains/                     Domain service (CRUD, tags, field-ownership rules)
     rdap/                        RDAP bootstrap + lookup client
     registrars/                  Provider interface + cloudflare.ts, porkbun.ts, godaddy.ts
     notifications/               Expiry check + email sending
     jobs/                        Scheduler setup and job definitions
     crypto.ts                    AES-256-GCM encryption for stored registrar credentials
-server.ts                        Process entry: env → migrations → jobs → HTTP
-tests/                           Integration tests (unit tests live next to source as *.test.ts)
-deploy/                          docker-compose.yml, PaaS templates (railway, render, fly)
+tests/                           Integration tests + helpers (unit tests live next to source as *.test.ts)
+scripts/                         Dev scripts run directly by Node (e.g. new-migration.ts)
+deploy/                          docker-compose.yml, docker-compose.postgres.yml, PaaS templates
 docs/                            architecture.md, self-hosting.md
 Dockerfile
 ```
+
+(*) Exception: `server.ts` reads `NODE_ENV` to decide between dev and prod before any app code loads.
+Directories for features not built yet (`domains/`, `rdap/`, `registrars/`, `notifications/`) are
+created when those features land.
 
 ## Configuration (env vars)
 
@@ -103,15 +115,22 @@ Adding a new env var: add it to `app/.server/env.ts`, this table, and `docs/self
 
 ```bash
 pnpm install
-pnpm dev            # dev server with HMR (SQLite at ./data by default)
+pnpm dev            # dev server with HMR (SQLite at ./data; a .env file is loaded if present)
 pnpm build          # production build
 pnpm start          # run built server (runs migrations on boot)
 pnpm test           # vitest (SQLite); set TEST_DATABASE_URL=postgres://... to also run Postgres
 pnpm typecheck      # react-router typegen + tsc
 pnpm lint           # biome check
 pnpm format         # biome format --write
-pnpm db:migration <name>   # scaffold a new Kysely migration file
+pnpm db:migration <name>   # scaffold app/.server/db/migrations/NNNN_<name>.ts
 ```
+
+Notes:
+- `pnpm dev` runs Node with `--conditions development`. Without it, Node and Vite load different
+  React Router builds and requests fail with "Invalid `context` value". Keep the flag.
+- In development, `APP_SECRET` defaults to a fixed insecure value; everywhere else it is required.
+- To run DB tests against Postgres locally, point `TEST_DATABASE_URL` at any Postgres database you
+  can create schemas in. Each test uses its own throwaway schema.
 
 Before considering any task done: `pnpm typecheck && pnpm lint && pnpm test` pass.
 
@@ -129,6 +148,10 @@ Before considering any task done: `pnpm typecheck && pnpm lint && pnpm test` pas
 
 ### Database portability (SQLite + Postgres)
 All queries and migrations must work on both dialects. To keep that cheap:
+- Migration files export `up(db, dialect)`; the `dialect` argument is for the rare type difference,
+  and using it needs a comment explaining why.
+- Column names are snake_case and row types in `db/schema.ts` mirror them exactly. No Kysely
+  `CamelCasePlugin` (it would break Better Auth's queries). Map to camelCase objects in services.
 - **IDs**: `text` primary keys, generated in the app (UUIDv7). No auto-increment.
 - **Dates**: date-only values (expiry, registration) are `text` in `YYYY-MM-DD`; timestamps are `text`
   ISO-8601 UTC (`2026-11-09T12:00:00.000Z`). They sort correctly as strings on both dialects.
@@ -139,6 +162,11 @@ All queries and migrations must work on both dialects. To keep that cheap:
 - No dialect-specific features (`RETURNING` is fine, both support it; no `ON CONFLICT` variants beyond
   Kysely's `onConflict` builder; no Postgres arrays/jsonb; no SQLite-only functions).
 - Migrations are append-only. Never edit a migration that has been released.
+- **Exception: Better Auth's tables** (`user`, `session`, `account`, `verification`) use the types
+  Better Auth expects per dialect (`boolean`/`timestamptz` on Postgres, `integer`/`date` on SQLite),
+  with columns mapped to snake_case in `auth/auth.ts`. `tests/migrations.test.ts` asks Better Auth
+  whether our schema matches what it expects. When upgrading Better Auth, run the tests; if they fail,
+  add a migration.
 
 ### Security
 - Registrar credentials are encrypted at rest with AES-256-GCM using a key derived from `APP_SECRET`
@@ -146,6 +174,10 @@ All queries and migrations must work on both dialects. To keep that cheap:
 - Changing `APP_SECRET` invalidates sessions and stored registrar credentials; document this, don't
   try to work around it.
 - All mutations go through React Router actions (form POSTs) protected by the session. No GET mutations.
+  React Router rejects cross-origin action POSTs (CSRF check), so `APP_URL` must match the URL users
+  actually use.
+- Auth forms call `auth.api.*` with `asResponse: true` and forward cookies via `authResult()`.
+  Redirect targets from user input go through `safeRedirect()`.
 
 ### Style
 - Biome defaults; no default exports except where React Router requires them (route modules, root).

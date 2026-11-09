@@ -1,0 +1,18 @@
+# Domain Brain — self-hosted with SQLite. All data lives in ./data.
+# 1. Set APP_SECRET (generate one with: openssl rand -hex 32)
+# 2. docker compose up -d
+# 3. Open http://localhost:3000 and create your account
+services:
+  domain-brain:
+    image: ghcr.io/OWNER/domain-brain:latest
+    ports:
+      - "3000:3000"
+    environment:
+      APP_SECRET: change-me-to-a-long-random-string-at-least-32-chars
+      APP_URL: http://localhost:3000
+      # REGISTRATION_ENABLED: "false"   # after creating your account
+      # SMTP_URL: smtps://user:pass@smtp.example.com:465
+      # EMAIL_FROM: Domain Brain <noreply@example.com>
+    volumes:
+      - ./data:/data
+    restart: unless-stopped

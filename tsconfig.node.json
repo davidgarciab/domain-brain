@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "server.ts",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "react-router.config.ts",
+    "scripts/**/*"
+  ],
+  "compilerOptions": {
+    "composite": true,
+    "types": ["node"],
+    "lib": ["ES2024"],
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true
+  }
+}

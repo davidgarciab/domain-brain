@@ -1,0 +1,29 @@
+# Domain Brain with Postgres instead of SQLite (optional; SQLite is enough for most setups).
+services:
+  domain-brain:
+    image: ghcr.io/OWNER/domain-brain:latest
+    ports:
+      - "3000:3000"
+    environment:
+      APP_SECRET: change-me-to-a-long-random-string-at-least-32-chars
+      APP_URL: http://localhost:3000
+      DATABASE_URL: postgres://domain_brain:domain_brain@postgres:5432/domain_brain
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: domain_brain
+      POSTGRES_PASSWORD: domain_brain
+      POSTGRES_DB: domain_brain
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U domain_brain"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped

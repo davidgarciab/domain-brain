@@ -1,0 +1,60 @@
+{
+  "name": "domain-brain",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Keep track of the domains you own",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "NODE_ENV=development node --conditions development --env-file-if-exists=.env server.ts",
+    "build": "react-router build",
+    "start": "NODE_ENV=production node --env-file-if-exists=.env server.ts",
+    "typecheck": "react-router typegen && tsc -b",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:migration": "node scripts/new-migration.ts"
+  },
+  "dependencies": {
+    "@react-router/express": "^8.5.1",
+    "@react-router/node": "^8.5.1",
+    "better-auth": "^1.7.18",
+    "better-sqlite3": "^13.0.3",
+    "compression": "^1.8.2",
+    "croner": "^11.0.0",
+    "express": "^5.3.0",
+    "isbot": "^5.2.2",
+    "kysely": "^0.29.8",
+    "nodemailer": "^10.4.0",
+    "pg": "^8.23.1",
+    "pino": "^10.4.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router": "^8.5.1",
+    "uuidv7": "^1.2.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.6",
+    "@react-router/dev": "^8.5.1",
+    "@tailwindcss/vite": "^4.3.5",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/compression": "^1.8.1",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.19.2",
+    "@types/nodemailer": "^8.0.2",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "pino-pretty": "^13.2.0",
+    "tailwindcss": "^4.3.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
+  }
+}

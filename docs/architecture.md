@@ -22,15 +22,23 @@
 There is one deployable and one process. No queue, cache, or worker service. Everything that runs
 in the background runs inside the same process on a schedule.
 
-### Process lifecycle (`server.ts`)
+### Process lifecycle
+
+`server.ts` is the entry point. Node 24 runs it directly (type stripping). It sets up Express:
+Vite middleware in development, static `build/client` assets in production. Then it loads
+`server/app.ts`: through Vite's `ssrLoadModule` in development, or the bundled `build/server/index.js`
+in production. That module calls `boot()` (in `app/.server/runtime.ts`), which does steps 1–4 below,
+and then the server listens. `boot()` is cached on `globalThis`, so dev-mode module reloads don't
+reconnect to the database or restart jobs.
 
 1. Load and validate env (`app/.server/env.ts`). Exit with a readable error if invalid
    (for example, a missing `APP_SECRET`).
 2. Open the database. The dialect comes from the `DATABASE_URL` scheme (`file:` = SQLite,
    `postgres:`/`postgresql:` = Postgres). For SQLite, create the parent directory, then set
    `journal_mode=WAL`, `foreign_keys=ON` and `busy_timeout=5000`.
-3. Run pending migrations with Kysely's `Migrator`. If a migration fails, log it and exit; the app
-   does not serve requests with a half-migrated schema.
+3. Run pending migrations with Kysely's `Migrator`. Migration files are bundled with
+   `import.meta.glob`, so the built server doesn't need the source tree. If a migration fails, log it
+   and exit; the app does not serve requests with a half-migrated schema.
 4. If `JOBS_ENABLED`, start the scheduler.
 5. Start Express: static assets, `GET /healthz` (checks the DB), then the React Router handler.
 6. On SIGTERM/SIGINT, stop the scheduler, stop accepting connections, close the DB, and exit.
@@ -39,7 +47,10 @@ in the background runs inside the same process on a schedule.
 
 Better Auth uses its own tables (`user`, `session`, `account`, `verification`). We create them in our
 first Kysely migration, copied from Better Auth's schema, so there is only one migration system.
-When upgrading Better Auth, check its changelog for schema changes and add a migration if needed.
+Their columns are mapped to snake_case in `app/.server/auth/auth.ts`, and they keep the native types
+Better Auth expects per dialect (`boolean`/`timestamptz` on Postgres). A test runs Better Auth's own
+schema diff (`getMigrations`) against our migrated database on both dialects, so a Better Auth upgrade
+that needs schema changes fails CI instead of failing in production.
 
 All IDs are UUIDv7 `text`. All timestamps are ISO-8601 UTC `text`. See the portability rules in
 CLAUDE.md.
@@ -191,6 +202,11 @@ correct even if you get this wrong, but RDAP and registrar calls would be duplic
 
 - Better Auth with email and password, database sessions, and an httpOnly session cookie
   (`secure` when `APP_URL` is https).
+- Our login, sign-up and logout pages are React Router actions that call `auth.api.*` server-side
+  and forward the session cookies. Better Auth's HTTP endpoints are also mounted at `/api/auth/*`
+  (resource route `app/routes/api.auth.ts`) for flows that need them, such as email links.
+- Route protection: `requireUser(context, request)` in a loader redirects to
+  `/login?redirectTo=…`. Signed-in pages live under the `routes/app-layout.tsx` layout, which does this.
 - `REGISTRATION_ENABLED=false` hides the sign-up page and rejects sign-up requests. The first account
   is created by turning registration on, signing up, then turning it off. This is documented in the
   self-hosting guide.
@@ -203,11 +219,12 @@ correct even if you get this wrong, but RDAP and registrar calls would be duplic
 
 ### Docker image
 - Multi-stage build on `node:24-slim`: install with `pnpm install --frozen-lockfile`, build, then
-  `pnpm prune --prod`. `better-sqlite3` uses its prebuilt glibc binary.
+  `pnpm prune --prod`. `better-sqlite3` uses its prebuilt glibc binary. The final image runs
+  `node server.ts` with the `build/` output and production `node_modules`.
 - Runs as the non-root `node` user. `WORKDIR /app`, `VOLUME /data`, `EXPOSE 3000`.
 - The default `DATABASE_URL` inside the image is `file:/data/domain-brain.db`.
 - Has a `HEALTHCHECK` on `/healthz`.
-- Published to `ghcr.io/<owner>/domain-brain` as `:latest` and `:vX.Y.Z` tags, for multiple
+- Published to `ghcr.io/OWNER/domain-brain` as `:latest` and `:vX.Y.Z` tags, for multiple
   architectures (amd64 and arm64, for Raspberry Pi and ARM VPS users).
 
 ### Self-hosting (target: under 2 minutes)
@@ -215,7 +232,7 @@ correct even if you get this wrong, but RDAP and registrar calls would be duplic
 # deploy/docker-compose.yml
 services:
   domain-brain:
-    image: ghcr.io/<owner>/domain-brain:latest
+    image: ghcr.io/OWNER/domain-brain:latest
     ports: ["3000:3000"]
     environment:
       APP_SECRET: change-me-to-a-long-random-string   # openssl rand -hex 32

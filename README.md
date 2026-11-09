@@ -18,7 +18,7 @@ rather not run it yourself.
 
 ```bash
 mkdir domain-brain && cd domain-brain
-curl -O https://raw.githubusercontent.com/<owner>/domain-brain/main/deploy/docker-compose.yml
+curl -O https://raw.githubusercontent.com/OWNER/domain-brain/main/deploy/docker-compose.yml
 # edit APP_SECRET (generate one with: openssl rand -hex 32)
 docker compose up -d
 ```
@@ -30,12 +30,15 @@ All your data lives in `./data`. To back up, copy that folder. To upgrade, run `
 
 ## Development
 
-Requires Node.js 24 and pnpm.
+Requires Node.js 24 and pnpm (the version is pinned in `package.json`; `corepack enable` picks it up).
 
 ```bash
 pnpm install
-pnpm dev
+pnpm dev          # http://localhost:3000, SQLite in ./data
+pnpm test         # add TEST_DATABASE_URL=postgres://... to also test against Postgres
 ```
+
+Optional: `cp .env.example .env` to change settings locally.
 
 - Architecture: [docs/architecture.md](docs/architecture.md)
 - Project rules and decisions: [CLAUDE.md](CLAUDE.md)
