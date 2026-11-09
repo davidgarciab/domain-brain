@@ -216,4 +216,44 @@ describe.each(testDialects())("registrar sync on %s", (dialect) => {
       expiresAt: "2027-05-01",
     });
   });
+
+  it("takes the renewal price from registrars that report it", async () => {
+    await createDomain(handle.db, alice, {
+      name: "priced.com",
+      registrarName: null,
+      registeredAt: null,
+      expiresAt: null,
+      autoRenew: null,
+      renewalPriceMinor: 500,
+      currency: "EUR",
+      notes: null,
+      tags: [],
+    });
+    const fetch = vi.fn(async () =>
+      Response.json({
+        domains: [
+          {
+            domainName: "priced.com",
+            createDate: "2023-01-15T14:30:00Z",
+            expireDate: "2027-01-15T14:30:00Z",
+            autorenewEnabled: true,
+            renewalPrice: 12.99,
+          },
+        ],
+      }),
+    ) as unknown as typeof globalThis.fetch;
+    const res = await connectRegistrar(
+      handle.db,
+      alice,
+      { provider: "namecom", label: "", credentials: { username: "ada", token: "t" } },
+      { secret: SECRET, fetch },
+    );
+    expect(res).toMatchObject({ ok: true, sync: { updated: 1 } });
+    const [domain] = await listDomains(handle.db, alice);
+    expect(domain).toMatchObject({
+      registrarName: "Name.com",
+      renewalPriceMinor: 1299,
+      currency: "USD",
+    });
+  });
 });

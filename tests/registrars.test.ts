@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { cloudflare } from "~/.server/registrars/cloudflare";
+import { gandi } from "~/.server/registrars/gandi";
 import { godaddy } from "~/.server/registrars/godaddy";
+import { namecom } from "~/.server/registrars/namecom";
 import { porkbun } from "~/.server/registrars/porkbun";
+import { spaceship } from "~/.server/registrars/spaceship";
 import { RegistrarError } from "~/.server/registrars/types";
 
 // Response shapes follow each provider's published docs/OpenAPI spec (2026-11).
@@ -183,6 +186,186 @@ describe("godaddy", () => {
     await expect(godaddy.verify({ token: "t", apiKey: "", apiSecret: "" }, fetch)).rejects.toThrow(
       /requirements/,
     );
+  });
+});
+
+describe("gandi", () => {
+  const domain = (fqdn: string, extra = {}) => ({
+    id: "ba1167be-2f76-11e9-9dfb-00163ec4cb00",
+    fqdn,
+    fqdn_unicode: fqdn,
+    tld: fqdn.split(".").at(-1),
+    autorenew: false,
+    dates: {
+      created_at: "2019-02-13T11:04:18Z",
+      registry_created_at: "2019-02-13T10:04:18Z",
+      registry_ends_at: "2027-02-13T10:04:18Z",
+      updated_at: "2019-02-25T16:20:49Z",
+    },
+    nameserver: { current: "livedns" },
+    status: ["clientTransferProhibited"],
+    tags: [],
+    ...extra,
+  });
+
+  it("pages until a short page", async () => {
+    const fetch = fakeFetch((url, init) => {
+      expect(url.pathname).toBe("/v5/domain/domains");
+      expect(header(init, "authorization")).toBe("Bearer pat_x");
+      const p = Number(url.searchParams.get("page"));
+      if (p === 1) return Response.json(Array.from({ length: 100 }, (_, i) => domain(`g${i}.net`)));
+      return Response.json([
+        domain("external.fr", {
+          autorenew: true,
+          nameserver: { current: "other", hosts: ["NS1.X.FR."] },
+        }),
+      ]);
+    });
+    const list = await gandi.listDomains({ token: "pat_x" }, fetch);
+    expect(list).toHaveLength(101);
+    expect(list[0]).toEqual({
+      name: "g0.net",
+      expiresAt: "2027-02-13",
+      registeredAt: "2019-02-13",
+      autoRenew: false,
+      nameservers: null,
+      renewalPriceMinor: null,
+      currency: null,
+    });
+    expect(list.at(-1)).toMatchObject({ autoRenew: true, nameservers: ["ns1.x.fr"] });
+  });
+
+  it("explains auth failures (real response)", async () => {
+    const fetch = fakeFetch(() =>
+      Response.json(
+        {
+          object: "HTTPForbidden",
+          cause: "Forbidden",
+          code: 403,
+          message: "Access was denied to this resource.",
+        },
+        { status: 403 },
+      ),
+    );
+    await expect(gandi.verify({ token: "bad" }, fetch)).rejects.toThrow(/Gandi rejected the token/);
+  });
+});
+
+describe("name.com", () => {
+  const creds = { username: "ada", token: "tok" };
+  const domain = (domainName: string, extra = {}) => ({
+    domainName,
+    createDate: "2023-01-15T14:30:00Z",
+    expireDate: "2027-01-15T14:30:00Z",
+    autorenewEnabled: true,
+    locked: true,
+    nameservers: ["ns1.name.com", "ns2.name.com"],
+    renewalPrice: 12.99,
+    ...extra,
+  });
+
+  it("uses basic auth, follows nextPage and maps renewal prices", async () => {
+    const fetch = fakeFetch((url, init) => {
+      expect(url.pathname).toBe("/core/v1/domains");
+      expect(header(init, "authorization")).toBe(
+        `Basic ${Buffer.from("ada:tok").toString("base64")}`,
+      );
+      if (url.searchParams.get("page") === "1") {
+        return Response.json({
+          domains: [domain("first.com")],
+          from: 1,
+          to: 1,
+          totalCount: 2,
+          nextPage: 2,
+          lastPage: 2,
+        });
+      }
+      return Response.json({
+        domains: [domain("second.io", { renewalPrice: undefined, autorenewEnabled: false })],
+        from: 2,
+        to: 2,
+        totalCount: 2,
+      });
+    });
+    expect(await namecom.listDomains(creds, fetch)).toEqual([
+      {
+        name: "first.com",
+        expiresAt: "2027-01-15",
+        registeredAt: "2023-01-15",
+        autoRenew: true,
+        nameservers: ["ns1.name.com", "ns2.name.com"],
+        renewalPriceMinor: 1299,
+        currency: "USD",
+      },
+      expect.objectContaining({
+        name: "second.io",
+        autoRenew: false,
+        renewalPriceMinor: null,
+        currency: null,
+      }),
+    ]);
+  });
+
+  it("explains auth failures (real response)", async () => {
+    const fetch = fakeFetch(() => Response.json({ message: "Unauthorized" }, { status: 401 }));
+    await expect(namecom.verify(creds, fetch)).rejects.toThrow(
+      /rejected the username or API token/,
+    );
+  });
+});
+
+describe("spaceship", () => {
+  const creds = { apiKey: "key", apiSecret: "secret" };
+  const item = (name: string, extra = {}) => ({
+    name,
+    unicodeName: name,
+    isPremium: false,
+    autoRenew: true,
+    registrationDate: "2024-03-01T08:00:00.000Z",
+    expirationDate: "2027-03-01T08:00:00.000Z",
+    lifecycleStatus: "registered",
+    verificationStatus: "success",
+    eppStatuses: ["clientTransferProhibited"],
+    suspensions: [],
+    privacyProtection: { contactForm: true, level: "high" },
+    nameservers: { provider: "custom", hosts: ["ns2.example.net", "NS1.example.net"] },
+    contacts: { registrant: "c1", admin: "c1", tech: "c1", billing: "c1", attributes: [] },
+    ...extra,
+  });
+
+  it("sends key headers and pages with take/skip", async () => {
+    const fetch = fakeFetch((url, init) => {
+      expect(url.pathname).toBe("/api/v1/domains");
+      expect(header(init, "x-api-key")).toBe("key");
+      expect(header(init, "x-api-secret")).toBe("secret");
+      const skip = Number(url.searchParams.get("skip"));
+      const items =
+        skip === 0
+          ? Array.from({ length: 100 }, (_, i) => item(`s${i}.xyz`))
+          : [item("last.xyz", { autoRenew: false, nameservers: { provider: "basic" } })];
+      return Response.json({ items, total: 101 });
+    });
+    const list = await spaceship.listDomains(creds, fetch);
+    expect(list).toHaveLength(101);
+    expect(list[0]).toMatchObject({
+      name: "s0.xyz",
+      expiresAt: "2027-03-01",
+      registeredAt: "2024-03-01",
+      autoRenew: true,
+      nameservers: ["ns1.example.net", "ns2.example.net"],
+    });
+    expect(list.at(-1)).toMatchObject({ autoRenew: false, nameservers: null });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("explains auth failures (real response)", async () => {
+    const fetch = fakeFetch(() =>
+      Response.json(
+        { detail: "The user's request was not properly authorized." },
+        { status: 401, headers: { "content-type": "application/problem+json" } },
+      ),
+    );
+    await expect(spaceship.verify(creds, fetch)).rejects.toThrow(/rejected the API key or secret/);
   });
 });
 

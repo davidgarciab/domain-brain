@@ -27,7 +27,8 @@ env var, or a manual setup step must be justified and recorded here.
 - **RDAP auto-lookup**: fill in and refresh expiry, registrar, nameservers, and status from public RDAP.
 - **Expiry notifications** by email (SMTP) at configurable days before expiry (default 30, 7, 1),
   plus one alert when a domain expires; sent after 08:00 in the user's timezone, with catch-up.
-- **Registrar API sync** (import/refresh domains, read-only) for **Cloudflare, Porkbun, GoDaddy**.
+- **Registrar API sync** (import/refresh domains, read-only) for **Cloudflare, Gandi, GoDaddy,
+  Name.com, Porkbun, Spaceship**.
   Adding a registrar = one new file implementing `RegistrarProvider`, registered in
   `registrars/index.ts`, with fixture-based tests. Check its API against the provider's current
   docs; they change (Cloudflare retired its old Registrar endpoint in 2026).

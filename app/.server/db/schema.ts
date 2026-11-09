@@ -1,3 +1,5 @@
+import type { ProviderId } from "../registrars/types";
+
 // Row types for Kysely. Column names are snake_case, exactly as in the database.
 // Portability rules (CLAUDE.md): text UUIDv7 ids, text ISO dates/timestamps,
 // integer 0/1 booleans, integer money in minor units, JSON stored as text.
@@ -60,7 +62,7 @@ export interface DomainTagTable {
 export interface RegistrarConnectionTable {
   id: string;
   user_id: string;
-  provider: "cloudflare" | "porkbun" | "godaddy";
+  provider: ProviderId;
   label: string;
   /** AES-256-GCM, see app/.server/crypto.ts */
   credentials_enc: string;

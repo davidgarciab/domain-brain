@@ -165,7 +165,7 @@ Every provider implements one interface (`types.ts`):
 
 ```ts
 interface RegistrarProvider<C> {
-  id: "cloudflare" | "porkbun" | "godaddy";
+  id: ProviderId; // "cloudflare" | "gandi" | "godaddy" | "namecom" | "porkbun" | "spaceship"
   displayName: string;
   setupHelp: string;                      // shown on the connect form
   fields: CredentialField[];              // drives the connect form (secret fields are never echoed)
@@ -195,8 +195,15 @@ Checked against the providers' docs and live error responses in 2026-11:
 | Cloudflare | API token (Bearer) with Registrar read access, account ID | `GET /client/v4/accounts/{id}/registrar/registrations` with cursor pagination (`per_page` ≤ 50) | The older `/registrar/domains` endpoint reached end of life on 2026-09-27. Only domains registered at Cloudflare Registrar are listed. No nameservers in the response. Auth failures come back as HTTP 400 (code 9106, malformed token) or 401 (code 10000). |
 | Porkbun | API key + secret key (in the JSON body) | `POST https://api.porkbun.com/api/json/v3/domain/listAll`, pages of 1000 via `start`; `POST /ping` to verify | Only domains with API access turned on are listed (per domain, or "Opt In All Domains"). Dates look like `"2027-01-15 10:00:00"` (UTC). Errors: HTTP 400 with `{status: "ERROR", message}`. |
 | GoDaddy | Personal access token (Bearer) **or** legacy API key + secret (`sso-key`) | `GET https://api.godaddy.com/v1/domains?limit=1000&includes=nameServers`, paginated with `marker` (last domain) | Production API access is limited to accounts that meet GoDaddy's requirements; the connect form says so. Domains in `CANCELLED*`, `TRANSFERRED*`, `UPDATED*`, `CONFISCATED`, `FAILED*` and `REVERTED` status are treated as no longer in the account. |
+| Gandi | Personal access token (Bearer) | `GET https://api.gandi.net/v5/domain/domains`, `page`/`per_page` (100), stop on a short page | `autorenew` is a boolean in the list; nameservers only when `nameserver.hosts` is present (not for LiveDNS). Bad token → HTTP 403. |
+| Name.com | Username + API token (HTTP Basic) | `GET https://api.name.com/core/v1/domains`, `perPage` ≤ 1000, follow `nextPage` | The only one reporting **renewal prices** (`renewalPrice`, USD), which then replace the user's price. Bad credentials → HTTP 401 `{message}`. |
+| Spaceship | API key + secret (`X-API-Key`, `X-API-Secret`), scope `domains:read` | `GET https://spaceship.dev/api/v1/domains?take=100&skip=…` with `total` | Errors are `application/problem+json` with `detail`. Rate limit 300 requests / 300 s. |
 
-None of the three reports renewal prices in these endpoints, so price stays user-entered for now.
+Only Name.com reports renewal prices; for the others the price stays user-entered.
+
+Not supported yet, and why: Namecheap (the API requires allow-listing the server's IP address and
+uses XML), OVH (signed requests with three keys), NameSilo (expiry dates need one extra request per
+domain).
 
 **Connecting** (`connectRegistrar()`): validate the form with the provider's schema → `verify()`
 against the live API → store the connection with AES-GCM-encrypted credentials → run the first

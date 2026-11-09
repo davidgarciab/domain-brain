@@ -3,7 +3,8 @@
 Keep track of every domain you own: where it's registered, when it expires, what it costs. Get an
 email before anything lapses.
 
-- **Import from your registrar**: Cloudflare, Porkbun and GoDaddy, kept in sync every 6 hours
+- **Import from your registrar**: Cloudflare, Gandi, GoDaddy, Name.com, Porkbun and Spaceship,
+  kept in sync every 6 hours
 - **Or add domains by hand**: expiry date, registrar and nameservers are filled in from the
   registry (RDAP) where available
 - **Expiry reminders by email**: 30, 7 and 1 days before by default, in your timezone

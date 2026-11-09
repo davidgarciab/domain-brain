@@ -1,6 +1,13 @@
 import type { z } from "zod";
 
-export const PROVIDER_IDS = ["cloudflare", "porkbun", "godaddy"] as const;
+export const PROVIDER_IDS = [
+  "cloudflare",
+  "gandi",
+  "godaddy",
+  "namecom",
+  "porkbun",
+  "spaceship",
+] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
 /** A domain as reported by a registrar, already normalized (see domains/names.ts). */

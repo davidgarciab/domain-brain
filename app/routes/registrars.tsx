@@ -67,7 +67,7 @@ export default function Registrars({ loaderData, actionData }: Route.ComponentPr
             return (
               <li
                 key={c.id}
-                className="flex flex-wrap items-start justify-between gap-4 p-4 sm:flex-nowrap"
+                className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -134,7 +134,7 @@ export default function Registrars({ loaderData, actionData }: Route.ComponentPr
       <h2 className="mt-10 font-medium">
         {connections.length ? "Connect another registrar" : "Connect a registrar"}
       </h2>
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
         {providers.map((p) => (
           <LinkButton key={p.id} to={`/registrars/new/${p.id}`} variant="secondary">
             {p.name}
