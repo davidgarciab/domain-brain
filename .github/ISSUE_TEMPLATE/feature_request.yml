@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest an improvement or a new feature
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check the [current scope](https://github.com/davidgarciab/domain-brain/blob/main/CLAUDE.md#product-scope-mvp)
+        first: some things (teams, DNS management, billing, WHOIS, webhooks, a public API) are deliberately left out for now.
+        Proposals to change that are still welcome; explain why below.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe what you're trying to do and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contributing
+      options:
+        - label: I'd like to work on this myself (see [CONTRIBUTING.md](https://github.com/davidgarciab/domain-brain/blob/main/CONTRIBUTING.md))

@@ -1,0 +1,67 @@
+name: Bug report
+description: Something doesn't work as it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Security problems go through
+        [private reporting](https://github.com/davidgarciab/domain-brain/security/advisories/new) instead.
+        **Remove passwords, API keys, `APP_SECRET`, connection strings and email addresses** from anything you paste.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to …
+        2. Click …
+        3. See …
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The image tag you run (e.g. `0.2.0`), or the commit if you build it yourself.
+    validations:
+      required: true
+  - type: dropdown
+    id: hosting
+    attributes:
+      label: How do you run it?
+      options:
+        - Docker Compose
+        - Render
+        - Render (free plan)
+        - Fly.io
+        - Railway
+        - Coolify / Portainer / similar
+        - Without Docker
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database
+      options:
+        - SQLite (default)
+        - Postgres
+    validations:
+      required: true
+  - type: input
+    id: registrar
+    attributes:
+      label: Registrar (if related)
+      description: For problems with registrar import or sync.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant lines from the container logs (`docker compose logs domain-brain`).
+      render: text

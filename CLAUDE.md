@@ -101,6 +101,11 @@ render.yaml                      Render Blueprint (must live at the repo root)
                                  release.yml (tag vX.Y.Z → multi-arch image on GHCR + GitHub release)
 Dockerfile
 CHANGELOG.md
+CONTRIBUTING.md                  Contributor guide (setup, checks, adding a registrar); keep in sync
+                                 with the rules here
+CODE_OF_CONDUCT.md, SECURITY.md  Contributor Covenant 2.1; private vulnerability reporting via GitHub
+.github/ISSUE_TEMPLATE/,         Issue forms (bug, feature; blank issues off) and PR checklist.
+  pull_request_template.md       Update the hosting options in bug_report.yml when they change
 ```
 
 (*) Exception: `server.ts` reads `NODE_ENV` to decide between dev and prod before any app code loads.

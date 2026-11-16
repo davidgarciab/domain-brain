@@ -46,9 +46,9 @@ Optional: `cp .env.example .env` to change settings locally.
 - How it works: [docs/architecture.md](docs/architecture.md)
 - Project rules and decisions (also the instructions for AI coding agents): [CLAUDE.md](CLAUDE.md)
 
-Contributions are welcome. Please open an issue first for larger changes. Adding a registrar is a
-good first contribution: it's one file implementing a small interface, plus tests (see
-`app/.server/registrars/`).
+Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Please open an issue first for
+larger changes. Adding a registrar is a good first contribution: it's one file implementing a
+small interface, plus tests.
 
 ### Releasing
 
