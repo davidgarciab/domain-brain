@@ -1,0 +1,27 @@
+# Render Blueprint for the free plan: https://render.com/docs/blueprint-spec
+# Setup guide: docs/self-hosting.md → "Render (free plan)".
+#
+# Free Render instances have no disk, sleep after 15 minutes without traffic, and can't reach
+# SMTP ports 25/465/587. So this variant needs three free services from elsewhere:
+#   - DATABASE_URL: a Postgres database (e.g. Neon), since there is no disk for SQLite
+#   - an uptime monitor requesting /favicon.svg every 10 minutes, so reminders keep running
+#   - SMTP_URL on a non-standard port (e.g. Resend on 2465), if you want email reminders
+services:
+  - type: web
+    name: domain-brain
+    runtime: image
+    image:
+      url: ghcr.io/davidgarciab/domain-brain:latest
+    plan: free
+    region: oregon # put the database in the same region (Neon: AWS us-west-2)
+    # No healthCheckPath: /healthz queries the database, and frequent checks would keep a
+    # serverless database awake and use up its free compute hours.
+    envVars:
+      - key: APP_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false # required, asked for in the dashboard
+      - key: SMTP_URL
+        sync: false # optional
+      - key: EMAIL_FROM
+        sync: false # optional

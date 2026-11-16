@@ -4,6 +4,9 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+- Render free plan option: `deploy/render-free.yaml` and a setup guide (Neon Postgres, an uptime
+  monitor, and Resend for email) in the self-hosting docs
+
 ## [0.2.0] - 2026-11-10
 
 - Registrar import for Namecheap, NameSilo and OVHcloud (EU, Canada and US)

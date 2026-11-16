@@ -27,7 +27,7 @@ Open http://localhost:3000 and create your account. All data lives in `./data`.
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/davidgarciab/domain-brain)
 
-The [self-hosting guide](docs/self-hosting.md) covers configuration, email, HTTPS, Fly.io, Railway,
+The [self-hosting guide](docs/self-hosting.md) covers configuration, email, HTTPS, Render's free plan, Fly.io, Railway,
 Coolify, Postgres, backups, upgrades and admin commands.
 
 ## Development

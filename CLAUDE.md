@@ -57,7 +57,7 @@ webhooks/Slack notifications, public REST API. Don't build these without updatin
 | Logging | pino (JSON in production, pretty in development) | |
 | Lint/format | Biome | One fast tool instead of ESLint + Prettier |
 | Tests | Vitest; DB tests run on SQLite always and on Postgres when `TEST_DATABASE_URL` is set (CI sets it) | Keeps both dialects honest |
-| Distribution | Docker image on GHCR + `docker-compose.yml`; one-click templates for Railway, Render, Fly.io, Coolify | Requested |
+| Distribution | Docker image on GHCR + `docker-compose.yml`; one-click templates for Railway, Render (paid, plus a free-plan variant using external Postgres), Fly.io, Coolify | Requested |
 | License | **AGPL-3.0** | Changes must be shared by anyone running a modified version as a service |
 
 ## Repository layout

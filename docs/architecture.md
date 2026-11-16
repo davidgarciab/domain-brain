@@ -306,12 +306,14 @@ Compose files; both were tested with the built image.
 | Platform | File | Notes |
 |---|---|---|
 | Render | `render.yaml` (repo root; "Deploy to Render" button in the README) | Prebuilt image, 1 GB disk at `/data`, generated `APP_SECRET`, Starter plan: free instances sleep and have no disks |
+| Render (free) | `deploy/render-free.yaml` (Blueprint Path set by the user) | Free plan, no disk: Postgres from outside (Neon), no health check (`/healthz` would keep a serverless DB awake), uptime monitor on `/favicon.svg` keeps it awake, SMTP on a non-blocked port (Resend 2465) |
 | Fly.io | `deploy/fly.toml` | Volume `data` at `/data`; `auto_stop_machines = "off"` and one machine always running |
 | Railway | none (steps in the guide) | Deploy the image, add a volume at `/data`. A template button can be published from the Railway dashboard later |
 | Coolify & co. | `deploy/docker-compose.yml` as is | |
 
 **One always-on instance.** Jobs run in-process, so platforms that sleep idle apps would silently
-stop reminders and syncs. All templates avoid that.
+stop reminders and syncs. All templates avoid that; the Render free variant relies on an external
+uptime monitor to do so, and is documented as suitable for trying it out or a few users.
 
 **`APP_URL` detection.** Auth and React Router's CSRF check need the public URL. If `APP_URL` is
 unset, `env.ts` derives it from `RENDER_EXTERNAL_URL`/`RENDER_EXTERNAL_HOSTNAME`,

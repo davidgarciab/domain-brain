@@ -8,7 +8,7 @@ all you need is somewhere to run a container and a folder (volume) to keep its d
 - [Email reminders](#email-reminders)
 - [Your first account and closing sign-ups](#your-first-account-and-closing-sign-ups)
 - [Running behind a reverse proxy / HTTPS](#running-behind-a-reverse-proxy--https)
-- [Hosting platforms (Render, Fly.io, Railway, Coolify)](#hosting-platforms)
+- [Hosting platforms (Render, Render free plan, Fly.io, Railway, Coolify)](#hosting-platforms)
 - [Using Postgres instead of SQLite](#using-postgres-instead-of-sqlite)
 - [Backups](#backups)
 - [Upgrading](#upgrading)
@@ -100,6 +100,8 @@ domains.example.com {
 
 All of these need **one always-on instance with a persistent disk** at `/data` (for SQLite).
 Reminders and syncs run inside the app, so platforms that put idle apps to sleep would stop them.
+The one exception is [Render's free plan](#render-free-plan), which works around both with
+external free services.
 
 ### Render
 
@@ -108,6 +110,42 @@ button, or create a Blueprint from this repo. It uses [`render.yaml`](../render.
 published image, a 1 GB disk at `/data`, a generated `APP_SECRET`, and the **Starter** plan (free
 instances sleep and can't have disks). `APP_URL` is detected automatically; set it yourself if you
 add a custom domain.
+
+### Render (free plan)
+
+For trying Domain Brain out, or a few users, at no cost. It combines four free accounts: Render
+runs the app, [Neon](https://neon.com) holds the database, an uptime monitor keeps the app awake,
+and [Resend](https://resend.com) sends email. Free tiers change; check each provider's limits.
+
+Why the extra services: free Render instances have no disk (so no SQLite), sleep after 15 minutes
+without visitors (which would pause reminders), and can't connect to the usual SMTP ports.
+
+1. **Database (Neon).** Create a project in the AWS **US West 2 (Oregon)** region, next to the app.
+   Copy the connection string (the direct one, not "pooled"). Replace `sslmode=require` with
+   `sslmode=verify-full` and remove `&channel_binding=require`, so it looks like
+   `postgresql://user:password@ep-….us-west-2.aws.neon.tech/neondb?sslmode=verify-full`.
+2. **App (Render).** New → **Blueprint**, connect a fork of this repo (or this repo itself), and
+   set **Blueprint Path** to `deploy/render-free.yaml`. Paste the Neon string as `DATABASE_URL`.
+   [`deploy/render-free.yaml`](../deploy/render-free.yaml) uses the published image, the free
+   plan, and a generated `APP_SECRET`. `APP_URL` is detected automatically.
+3. **Keep it awake.** In a free uptime monitor (e.g. UptimeRobot or cron-job.org), request
+   `https://<your-app>.onrender.com/favicon.svg` every 10 minutes. Use this path, **not**
+   `/healthz`: `/healthz` queries the database, and pinging it would keep Neon awake around the
+   clock and use up its free compute hours. One always-on service fits in Render's 750 free hours
+   a month.
+4. **Email (optional).** Create a Resend API key and verify your sending domain, then set
+   `SMTP_URL=smtps://resend:<api-key>@smtp.resend.com:2465` and `EMAIL_FROM` to an address on
+   that domain. Port 2465 matters: Render's free plan blocks 25, 465 and 587. Any SMTP provider
+   that listens on another port (often 2525) works too.
+
+Good to know:
+- If the monitor stops, the app sleeps and reminders pause. Reminders that were missed are sent
+  once the app wakes up again. Waking up takes about a minute.
+- Render can restart free instances at any time. That's harmless here: nothing is stored on the
+  instance itself.
+- Neon's free plan includes 1 GB of storage, far more than Domain Brain needs.
+- To move to a paid Render plan later, keep `DATABASE_URL` pointing at Neon (or copy the data with
+  `pg_dump`); switching to SQLite isn't supported.
 
 ### Fly.io
 
