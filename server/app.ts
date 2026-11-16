@@ -26,7 +26,13 @@ app.get("/healthz", async (_req, res) => {
 
 app.use(
   createRequestHandler({
-    build: () => import("virtual:react-router/server-build"),
+    // React Router rejects action POSTs whose Origin doesn't match the request URL (CSRF check).
+    // Behind an HTTPS proxy (Render, Fly.io, Caddy, …) the app sees http://, so the browser's
+    // https:// Origin never matches. Allow APP_URL's host: it's the public URL by definition.
+    build: async () => ({
+      ...(await import("virtual:react-router/server-build")),
+      allowedActionOrigins: [new URL(env().APP_URL).host],
+    }),
     async getLoadContext() {
       const context = new RouterContextProvider();
       context.set(runtimeContext, await boot());
