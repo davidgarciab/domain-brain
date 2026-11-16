@@ -4,6 +4,8 @@ All notable changes are listed here. Versions follow [Semantic Versioning](https
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-16
+
 - Fix: sign-up, sign-in and every form failed with "Bad Request" when the app runs behind an
   HTTPS proxy (Render, Fly.io, Railway, Caddy, …). Forms are now accepted from `APP_URL`
 - Render free plan option: `deploy/render-free.yaml` and a setup guide (Neon Postgres, an uptime
